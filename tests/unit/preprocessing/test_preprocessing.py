@@ -808,6 +808,144 @@ def test_markdown_to_jira_bold_without_space_still_converts(preprocessor_with_ji
     assert preprocessor_with_jira.markdown_to_jira("*italic text*") == "_italic text_"
 
 
+def test_converts_markdown_underscore_bold(preprocessor_with_jira):
+    """__bold__ converts to *bold* same as **bold**."""
+    assert preprocessor_with_jira.markdown_to_jira("__bold text__") == "*bold text*"
+
+
+def test_converts_markdown_bold_italic(preprocessor_with_jira):
+    """Markdown bold+italic variants convert to Jira bold wrapping italic."""
+    expected = "*_really important_*"
+    assert preprocessor_with_jira.markdown_to_jira("***really important***") == expected
+    assert preprocessor_with_jira.markdown_to_jira("___really important___") == expected
+    assert preprocessor_with_jira.markdown_to_jira("__*really important*__") == expected
+    assert preprocessor_with_jira.markdown_to_jira("**_really important_**") == expected
+
+
+def test_converts_markdown_headings(preprocessor_with_jira):
+    """Pure Markdown headings convert to h1.-h3."""
+    result = preprocessor_with_jira.markdown_to_jira("# Title\n## Section\n### Sub")
+    assert result == "h1. Title\nh2. Section\nh3. Sub"
+
+
+def test_converts_markdown_headings_with_horizontal_rule(preprocessor_with_jira):
+    """Horizontal rules do not suppress Markdown heading conversion."""
+    md = "## Background\n\nSome text.\n\n## Scope\n\nMore text.\n\n---\nFooter"
+    result = preprocessor_with_jira.markdown_to_jira(md)
+
+    assert "h2. Background" in result
+    assert "h2. Scope" in result
+    assert "## Background" not in result
+    assert "## Scope" not in result
+
+
+def test_converts_markdown_headings_with_template_variable(preprocessor_with_jira):
+    """{{variable}} at line start does not suppress Markdown heading conversion."""
+    md = "{{variable}} should be configured first\n\n# My Heading\n## Sub-section"
+    result = preprocessor_with_jira.markdown_to_jira(md)
+
+    assert "h1. My Heading" in result
+    assert "h2. Sub-section" in result
+
+
+def test_converts_markdown_underline_heading(preprocessor_with_jira):
+    """Setext-style headings convert to h1./h2."""
+    assert preprocessor_with_jira.markdown_to_jira("Title\n=====") == "h1. Title"
+    assert preprocessor_with_jira.markdown_to_jira("Title\n-----") == "h2. Title"
+
+
+def test_converts_markdown_horizontal_rule(preprocessor_with_jira):
+    """Standalone horizontal rules convert to Jira horizontal rule syntax."""
+    assert preprocessor_with_jira.markdown_to_jira("---") == "----"
+    assert preprocessor_with_jira.markdown_to_jira("***") == "----"
+    assert preprocessor_with_jira.markdown_to_jira("___") == "----"
+
+
+def test_converts_markdown_horizontal_rule_does_not_corrupt_setext(
+    preprocessor_with_jira,
+):
+    """Standalone --- must not fire the setext heading regex."""
+    result = preprocessor_with_jira.markdown_to_jira("text\n\n---\n\nmore text")
+    assert "----" in result
+    assert "h2." not in result
+
+
+def test_converts_markdown_numbered_list(preprocessor_with_jira):
+    """Markdown numbered lists convert to Jira ordered list syntax."""
+    result = preprocessor_with_jira.markdown_to_jira("1. First\n2. Second\n3. Third")
+    assert result == "# First\n# Second\n# Third"
+
+
+def test_converts_markdown_strikethrough(preprocessor_with_jira):
+    """~~text~~ converts to Jira strikethrough."""
+    result = preprocessor_with_jira.markdown_to_jira("~~deleted~~")
+    assert result == "-deleted-"
+
+
+def test_converts_markdown_link(preprocessor_with_jira):
+    """Markdown links convert to Jira link syntax."""
+    result = preprocessor_with_jira.markdown_to_jira(
+        "[Atlassian](https://atlassian.com)"
+    )
+    assert result == "[Atlassian|https://atlassian.com]"
+
+
+def test_converts_markdown_bare_link(preprocessor_with_jira):
+    """Bare Markdown links convert to Jira link syntax."""
+    result = preprocessor_with_jira.markdown_to_jira("<https://atlassian.com>")
+    assert result == "[https://atlassian.com]"
+
+
+def test_converts_markdown_image_no_alt(preprocessor_with_jira):
+    """Markdown images without alt text convert to Jira image syntax."""
+    result = preprocessor_with_jira.markdown_to_jira("![](https://example.com/img.png)")
+    assert result == "!https://example.com/img.png!"
+
+
+def test_converts_markdown_image_with_alt(preprocessor_with_jira):
+    """Markdown images with alt text convert to Jira image syntax."""
+    result = preprocessor_with_jira.markdown_to_jira(
+        "![logo](https://example.com/img.png)"
+    )
+    assert result == "!https://example.com/img.png|alt=logo!"
+
+
+def test_converts_html_color_span(preprocessor_with_jira):
+    """HTML color spans convert to Jira color syntax."""
+    result = preprocessor_with_jira.markdown_to_jira(
+        '<span style="color:#ff0000">red text</span>'
+    )
+    assert result == "{color:#ff0000}red text{color}"
+
+
+def test_converts_markdown_table(preprocessor_with_jira):
+    """Markdown table header row converts to Jira double-pipe header syntax."""
+    md = "| Col A | Col B |\n|-------|-------|\n| val 1 | val 2 |"
+    result = preprocessor_with_jira.markdown_to_jira(md)
+    assert "|| Col A || Col B ||" in result
+    assert "| val 1 | val 2 |" in result
+
+
+def test_converts_markdown_blockquote(preprocessor_with_jira):
+    """Blockquotes convert to Jira quote blocks."""
+    result = preprocessor_with_jira.markdown_to_jira("> This is a quote")
+    assert result == "{quote}\nThis is a quote\n{quote}"
+
+
+def test_converts_markdown_blockquote_multiline(preprocessor_with_jira):
+    """Consecutive quote lines convert to a single Jira quote block."""
+    md = "> First line\n> Second line"
+    result = preprocessor_with_jira.markdown_to_jira(md)
+    assert result == "{quote}\nFirst line\nSecond line\n{quote}"
+
+
+def test_converts_markdown_blockquote_multi_paragraph(preprocessor_with_jira):
+    """Multi-paragraph blockquotes convert to one Jira quote block."""
+    md = "> First paragraph.\n>\n> Second paragraph."
+    result = preprocessor_with_jira.markdown_to_jira(md)
+    assert result == "{quote}\nFirst paragraph.\n\nSecond paragraph.\n{quote}"
+
+
 def test_md2conf_elements_from_string_available():
     """Test that elements_from_string is importable with fallback (issue #817)."""
     from mcp_atlassian.preprocessing.confluence import elements_from_string
