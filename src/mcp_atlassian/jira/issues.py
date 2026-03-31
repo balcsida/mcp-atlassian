@@ -11,6 +11,7 @@ from requests.exceptions import HTTPError
 
 from ..exceptions import MCPAtlassianAuthenticationError
 from ..models.jira import JiraIssue
+from ..models.jira.adf import merge_adf_with_preserved_media
 from ..models.jira.common import JiraChangelog
 from ..utils import parse_date
 from .client import JiraClient
@@ -44,6 +45,36 @@ class IssuesMixin(
     UsersOperationsProto,
 ):
     """Mixin for Jira issue operations."""
+
+    def _preserve_cloud_description_media(
+        self,
+        issue_key: str,
+        description_adf: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Preserve existing Cloud description media during Markdown rewrites."""
+        try:
+            issue_data = self.jira.get(
+                f"rest/api/3/issue/{issue_key}",
+                params={"fields": "description", "updateHistory": "false"},
+            )
+            if not isinstance(issue_data, dict):
+                return description_adf
+
+            current_description = issue_data.get("fields", {}).get("description")
+            if not isinstance(current_description, dict):
+                return description_adf
+
+            return merge_adf_with_preserved_media(
+                target_adf=description_adf,
+                source_adf=current_description,
+            )
+        except (HTTPError, OSError, TypeError, ValueError) as exc:
+            logger.warning(
+                "Failed to preserve existing Jira media nodes for %s: %s",
+                issue_key,
+                exc,
+            )
+            return description_adf
 
     def get_issue(
         self,
@@ -1240,12 +1271,16 @@ class IssuesMixin(
 
             update_fields = fields or {}
             attachments_result = None
+            preserve_description_media = False
 
             # Convert description from Markdown to Jira format if present
             if "description" in update_fields:
                 desc = update_fields["description"]
                 # Skip conversion if already an ADF dict (e.g. passed from raw ADF input)
-                if not isinstance(desc, dict):
+                if isinstance(desc, str):
+                    preserve_description_media = bool(desc.strip())
+                    update_fields["description"] = self._markdown_to_jira(desc)
+                elif not isinstance(desc, dict):
                     update_fields["description"] = self._markdown_to_jira(desc)
 
             # Resolve epic link aliases before processing kwargs
@@ -1294,6 +1329,9 @@ class IssuesMixin(
                         )
                 elif key == "description":
                     # Handle description with markdown conversion
+                    preserve_description_media = isinstance(value, str) and bool(
+                        value.strip()
+                    )
                     update_fields["description"] = self._markdown_to_jira(value)
                 else:
                     # Process regular fields using _process_additional_fields
@@ -1305,6 +1343,13 @@ class IssuesMixin(
             if update_fields:
                 has_adf = isinstance(update_fields.get("description"), dict)
                 if has_adf and self.config.is_cloud:
+                    if preserve_description_media:
+                        update_fields["description"] = (
+                            self._preserve_cloud_description_media(
+                                issue_key=issue_key,
+                                description_adf=update_fields["description"],
+                            )
+                        )
                     self._put_api3(
                         f"issue/{issue_key}",
                         {"fields": update_fields},

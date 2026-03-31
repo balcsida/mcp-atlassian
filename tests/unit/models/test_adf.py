@@ -13,7 +13,9 @@ import pytest
 from src.mcp_atlassian.models.jira.adf import (
     adf_to_text,
     build_media_comment_adf,
+    extract_top_level_media_nodes,
     markdown_to_adf,
+    merge_adf_with_preserved_media,
 )
 
 
@@ -763,7 +765,6 @@ class TestMarkdownToAdf:
         for word in ["Hello", "world", "bold", "italic", "text"]:
             assert word in text_back
 
-
 class TestMarkdownToAdfPanels:
     """Tests for panel node support in markdown_to_adf."""
 
@@ -813,6 +814,101 @@ class TestMarkdownToAdfPanels:
         result = markdown_to_adf("## Heading\n\n:::note\nA note.\n:::\n\n- list item")
         types = [n["type"] for n in result["content"]]
         assert types == ["heading", "panel", "bulletList"]
+
+
+class TestAdfMediaPreservation:
+    """Tests for preserving existing media nodes during description rewrites."""
+
+    def test_extract_top_level_media_nodes(self):
+        """Media blocks are extracted from the document root."""
+        media_single = {
+            "type": "mediaSingle",
+            "attrs": {"layout": "center"},
+            "content": [
+                {
+                    "type": "media",
+                    "attrs": {
+                        "id": "video-123",
+                        "type": "file",
+                        "collection": "",
+                    },
+                }
+            ],
+        }
+        adf = {
+            "version": 1,
+            "type": "doc",
+            "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": "Intro"}]},
+                media_single,
+            ],
+        }
+
+        extracted = extract_top_level_media_nodes(adf)
+
+        assert extracted == [media_single]
+
+    def test_merge_adf_with_preserved_media_appends_media_blocks(self):
+        """Existing media blocks are preserved in the outgoing ADF document."""
+        media_single = {
+            "type": "mediaSingle",
+            "attrs": {"layout": "center"},
+            "content": [
+                {
+                    "type": "media",
+                    "attrs": {
+                        "id": "video-123",
+                        "type": "file",
+                        "collection": "",
+                    },
+                }
+            ],
+        }
+        source_adf = {
+            "version": 1,
+            "type": "doc",
+            "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": "Old"}]},
+                media_single,
+            ],
+        }
+        target_adf = markdown_to_adf("Updated text")
+
+        merged = merge_adf_with_preserved_media(target_adf, source_adf)
+
+        assert merged["content"][-1] == media_single
+        assert merged["content"][0]["type"] == "paragraph"
+
+    def test_merge_adf_with_preserved_media_skips_duplicates(self):
+        """Media nodes already present in the target are not duplicated."""
+        media_single = {
+            "type": "mediaSingle",
+            "attrs": {"layout": "center"},
+            "content": [
+                {
+                    "type": "media",
+                    "attrs": {
+                        "id": "video-123",
+                        "type": "file",
+                        "collection": "",
+                    },
+                }
+            ],
+        }
+        target_adf = {
+            "version": 1,
+            "type": "doc",
+            "content": [media_single],
+        }
+        source_adf = {
+            "version": 1,
+            "type": "doc",
+            "content": [media_single],
+        }
+
+        merged = merge_adf_with_preserved_media(target_adf, source_adf)
+
+        assert merged["content"] == [media_single]
 
 
 class TestMarkdownToJiraDispatch:
