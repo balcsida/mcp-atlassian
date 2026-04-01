@@ -78,6 +78,7 @@ class JiraIssue(ApiModel, TimestampMixin):
     epic_key: str | None = None
     epic_name: str | None = None
     fix_versions: list[str] = Field(default_factory=list)
+    versions: list[str] = Field(default_factory=list)
     custom_fields: dict[str, Any] = Field(default_factory=dict)
     requested_fields: Literal["*all"] | list[str] | None = None
     project: JiraProject | None = None
@@ -374,6 +375,17 @@ class JiraIssue(ApiModel, TimestampMixin):
                     if version
                 ]
 
+        versions = []
+        if versions_data := fields.get("versions"):
+            if isinstance(versions_data, list):
+                versions = [
+                    str(version.get("name", ""))
+                    if isinstance(version, dict)
+                    else str(version)
+                    for version in versions_data
+                    if version
+                ]
+
         # Handling comments
         comments = []
         comments_field = fields.get("comment", {})
@@ -483,6 +495,7 @@ class JiraIssue(ApiModel, TimestampMixin):
             epic_key=epic_key,
             epic_name=epic_name,
             fix_versions=fix_versions,
+            versions=versions,
             custom_fields=custom_fields,
             requested_fields=requested_fields_param,
             changelogs=changelogs,
@@ -577,6 +590,10 @@ class JiraIssue(ApiModel, TimestampMixin):
 
         if self.fix_versions and should_include_field("fixVersions"):
             result["fix_versions"] = self.fix_versions
+
+        # Affects Version/s
+        if self.versions and should_include_field("versions"):
+            result["versions"] = self.versions
 
         # Add epic fields if available and requested
         if self.epic_key and should_include_field("epic_key"):
