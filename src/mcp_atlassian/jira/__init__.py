@@ -14,6 +14,7 @@ from .client import JiraClient
 from .comments import CommentsMixin
 from .config import JiraConfig
 from .development import DevelopmentMixin
+from .epic_analysis import EpicAnalysisMixin
 from .epics import EpicsMixin
 from .field_options import FieldOptionsMixin
 from .fields import FieldsMixin
@@ -42,6 +43,7 @@ class JiraFetcher(
     FormattingMixin,
     TransitionsMixin,
     WorklogMixin,
+    EpicAnalysisMixin,
     EpicsMixin,
     CommentsMixin,
     SearchMixin,
@@ -67,6 +69,7 @@ class JiraFetcher(
     - FormattingMixin: Content formatting utilities
     - TransitionsMixin: Issue transition operations
     - WorklogMixin: Worklog operations
+    - EpicAnalysisMixin: Epic summary and child aggregation operations
     - EpicsMixin: Epic operations
     - CommentsMixin: Comment operations
     - SearchMixin: Search operations
