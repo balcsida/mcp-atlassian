@@ -2,12 +2,30 @@
 Tests for the base models and utility classes.
 """
 
+import os
+import time
 from typing import Any
 
 import pytest
 
 from src.mcp_atlassian.models.base import ApiModel, TimestampMixin
 from src.mcp_atlassian.models.constants import EMPTY_STRING
+
+
+@pytest.fixture
+def utc_tz():
+    """Force process local timezone to UTC for the duration of the test."""
+    old_tz = os.environ.get("TZ")
+    os.environ["TZ"] = "UTC"
+    time.tzset()
+    try:
+        yield
+    finally:
+        if old_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old_tz
+        time.tzset()
 
 
 class TestApiModel:
@@ -45,23 +63,23 @@ class TestApiModel:
 class TestTimestampMixin:
     """Tests for the TimestampMixin utility class."""
 
-    def test_format_timestamp_valid(self):
+    def test_format_timestamp_valid(self, utc_tz):
         """Test formatting a valid ISO 8601 timestamp."""
         timestamp = "2024-01-01T12:34:56.789+0000"
         formatter = TimestampMixin()
 
         result = formatter.format_timestamp(timestamp)
 
-        assert result == "2024-01-01 12:34:56"
+        assert result == "2024-01-01 12:34:56 UTC"
 
-    def test_format_timestamp_with_z(self):
+    def test_format_timestamp_with_z(self, utc_tz):
         """Test formatting a timestamp with Z (UTC) timezone."""
         timestamp = "2024-01-01T12:34:56.789Z"
         formatter = TimestampMixin()
 
         result = formatter.format_timestamp(timestamp)
 
-        assert result == "2024-01-01 12:34:56"
+        assert result == "2024-01-01 12:34:56 UTC"
 
     def test_format_timestamp_none(self):
         """Test formatting a None timestamp."""

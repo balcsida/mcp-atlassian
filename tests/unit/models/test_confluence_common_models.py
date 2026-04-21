@@ -5,6 +5,11 @@ Tests for ConfluenceAttachment, ConfluenceUser, ConfluenceSpace,
 ConfluenceVersion, ConfluenceComment, and ConfluenceLabel models.
 """
 
+import os
+import time
+
+import pytest
+
 from mcp_atlassian.models import (
     ConfluenceAttachment,
     ConfluenceComment,
@@ -14,6 +19,22 @@ from mcp_atlassian.models import (
     ConfluenceVersion,
 )
 from mcp_atlassian.models.constants import EMPTY_STRING
+
+
+@pytest.fixture
+def utc_tz():
+    """Force process local timezone to UTC for the duration of the test."""
+    old_tz = os.environ.get("TZ")
+    os.environ["TZ"] = "UTC"
+    time.tzset()
+    try:
+        yield
+    finally:
+        if old_tz is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old_tz
+        time.tzset()
 
 
 class TestConfluenceAttachment:
@@ -343,7 +364,7 @@ class TestConfluenceVersion:
         assert version.message is None
         assert version.by is None
 
-    def test_to_simplified_dict(self):
+    def test_to_simplified_dict(self, utc_tz):
         """Test converting ConfluenceVersion to a simplified dictionary."""
         version = ConfluenceVersion(
             number=5,
@@ -356,7 +377,7 @@ class TestConfluenceVersion:
 
         assert isinstance(simplified, dict)
         assert simplified["number"] == 5
-        assert simplified["when"] == "2024-01-01 09:00:00"  # Formatted timestamp
+        assert simplified["when"] == "2024-01-01 09:00:00 UTC"  # Formatted timestamp
         assert simplified["message"] == "Updated content"
         assert simplified["by"] == "Test User"
 
@@ -390,7 +411,7 @@ class TestConfluenceComment:
         assert comment.author is None
         assert comment.type == "comment"
 
-    def test_to_simplified_dict(self):
+    def test_to_simplified_dict(self, utc_tz):
         """Test converting ConfluenceComment to a simplified dictionary."""
         comment = ConfluenceComment(
             id="456789123",
@@ -408,8 +429,8 @@ class TestConfluenceComment:
         assert simplified["id"] == "456789123"
         assert simplified["title"] == "Test Comment"
         assert simplified["body"] == "This is a test comment"
-        assert simplified["created"] == "2024-01-01 10:00:00"  # Formatted timestamp
-        assert simplified["updated"] == "2024-01-01 10:00:00"  # Formatted timestamp
+        assert simplified["created"] == "2024-01-01 10:00:00 UTC"
+        assert simplified["updated"] == "2024-01-01 10:00:00 UTC"
         assert simplified["author"] == "Comment Author"
 
 
