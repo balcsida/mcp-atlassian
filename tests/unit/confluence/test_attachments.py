@@ -1339,7 +1339,7 @@ class TestDownloadContentAttachmentsServerTool:
                 download_content_attachments as server_download_content,
             )
 
-            results = await server_download_content.fn(
+            results = await server_download_content(
                 ctx=MagicMock(), content_id="123456"
             )
 
