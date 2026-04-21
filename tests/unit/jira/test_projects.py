@@ -497,7 +497,9 @@ def test_get_project_issue_types(
     projects_mixin.jira.issue_createmeta_issuetypes.return_value = createmeta
 
     result = projects_mixin.get_project_issue_types("PROJ1")
-    assert result == mock_issue_types
+    assert [it["id"] for it in result] == ["10000", "10001"]
+    assert [it["name"] for it in result] == ["Bug", "Task"]
+    assert [it["description"] for it in result] == ["A bug", "A task"]
     projects_mixin.jira.issue_createmeta_issuetypes.assert_called_once_with(
         project="PROJ1"
     )
@@ -515,7 +517,8 @@ def test_get_project_issue_types_old_format(
     projects_mixin.jira.issue_createmeta_issuetypes.return_value = createmeta
 
     result = projects_mixin.get_project_issue_types("PROJ1")
-    assert result == mock_issue_types
+    assert [it["id"] for it in result] == ["10000", "10001"]
+    assert [it["name"] for it in result] == ["Bug", "Task"]
 
 
 def test_get_project_issue_types_empty_response(projects_mixin: ProjectsMixin):
@@ -558,7 +561,58 @@ def test_get_project_issue_types_issue_types_key_fallback(
     projects_mixin.jira.issue_createmeta_issuetypes.return_value = createmeta
 
     result = projects_mixin.get_project_issue_types("PROJ1")
-    assert result == mock_issue_types
+    assert [it["id"] for it in result] == ["10000", "10001"]
+    assert [it["name"] for it in result] == ["Bug", "Task"]
+
+
+def test_get_project_issue_types_strips_bloat_fields(projects_mixin: ProjectsMixin):
+    """get_project_issue_types must return simplified dicts without iconUrl/self/hierarchyLevel."""
+    raw_api = {
+        "maxResults": 50,
+        "startAt": 0,
+        "total": 2,
+        "isLast": True,
+        "values": [
+            {
+                "self": "https://test.atlassian.net/rest/api/2/issuetype/10000",
+                "id": "10000",
+                "description": "A big user story.",
+                "iconUrl": "https://test.atlassian.net/images/icons/issuetypes/epic.svg",
+                "name": "Epic",
+                "untranslatedName": "Epic",
+                "subtask": False,
+                "hierarchyLevel": 1,
+            },
+            {
+                "self": "https://test.atlassian.net/rest/api/2/issuetype/10055",
+                "id": "10055",
+                "description": "A small piece of work.",
+                "iconUrl": "https://test.atlassian.net/rest/api/2/universal_avatar/…",
+                "name": "Sub-task",
+                "untranslatedName": "Sub-task",
+                "subtask": True,
+                "hierarchyLevel": -1,
+            },
+        ],
+    }
+    projects_mixin.jira.issue_createmeta_issuetypes.return_value = raw_api
+
+    result = projects_mixin.get_project_issue_types("PROJ1")
+
+    assert len(result) == 2
+    for issue_type in result:
+        # Bloat stripped
+        for bloat in ("self", "iconUrl", "hierarchyLevel"):
+            assert bloat not in issue_type, f"expected {bloat!r} to be stripped"
+        # Whitelisted keys present
+        assert "id" in issue_type
+        assert "name" in issue_type
+        assert "description" in issue_type
+        assert "subtask" in issue_type
+    # Localized-resolution data must still be available (see _find_issue_type_id)
+    assert result[0]["untranslated_name"] == "Epic"
+    assert result[1]["subtask"] is True
+    assert result[0]["subtask"] is False
 
 
 def test_get_project_issues_count(projects_mixin: ProjectsMixin):

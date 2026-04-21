@@ -277,12 +277,17 @@ class TestJiraIssueType:
             name="Task",
             description="A task that needs to be done.",
             icon_url="https://example.com/task-icon.png",
+            subtask=False,
+            untranslated_name="Task",
         )
         simplified = issue_type.to_simplified_dict()
         assert isinstance(simplified, dict)
+        assert simplified["id"] == "10000"
         assert simplified["name"] == "Task"
-        assert "id" not in simplified
-        assert "description" not in simplified
+        assert simplified["description"] == "A task that needs to be done."
+        assert simplified["subtask"] is False
+        assert simplified["untranslated_name"] == "Task"
+        # icon_url is the actual bloat — always excluded
         assert "icon_url" not in simplified
 
 

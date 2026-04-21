@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 from ..models import JiraProject
+from ..models.jira.common import JiraIssueType
 from ..models.jira.search import JiraSearchResult
 from ..models.jira.version import JiraVersion
 from .client import JiraClient
@@ -249,11 +250,15 @@ class ProjectsMixin(JiraClient, SearchOperationsProto):
         """
         Get all issue types available for a project.
 
+        Returns simplified issue-type dicts (id, name, description, subtask,
+        untranslated_name) with raw API fields like ``self``, ``iconUrl``,
+        ``hierarchyLevel`` stripped.
+
         Args:
             project_key: The project key
 
         Returns:
-            List of issue type data dictionaries
+            List of simplified issue type dictionaries
         """
         try:
             meta = self.jira.issue_createmeta_issuetypes(project=project_key)
@@ -277,7 +282,11 @@ class ProjectsMixin(JiraClient, SearchOperationsProto):
                 if projects and "issuetypes" in projects[0]:
                     issue_types = projects[0]["issuetypes"]
 
-            return issue_types
+            return [
+                JiraIssueType.from_api_response(it).to_simplified_dict()
+                for it in issue_types
+                if isinstance(it, dict)
+            ]
 
         except Exception as e:
             logger.error(

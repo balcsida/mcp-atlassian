@@ -209,6 +209,8 @@ class JiraIssueType(ApiModel):
     name: str = UNKNOWN
     description: str | None = None
     icon_url: str | None = None
+    subtask: bool = False
+    untranslated_name: str | None = None
 
     @classmethod
     def from_api_response(cls, data: dict[str, Any], **kwargs: Any) -> "JiraIssueType":
@@ -237,11 +239,22 @@ class JiraIssueType(ApiModel):
             name=str(data.get("name", UNKNOWN)),
             description=data.get("description"),
             icon_url=data.get("iconUrl"),
+            subtask=bool(data.get("subtask", False)),
+            untranslated_name=data.get("untranslatedName"),
         )
 
     def to_simplified_dict(self) -> dict[str, Any]:
         """Convert to simplified dictionary for API response."""
-        return {"name": self.name}
+        result: dict[str, Any] = {
+            "id": self.id,
+            "name": self.name,
+            "subtask": self.subtask,
+        }
+        if self.description:
+            result["description"] = self.description
+        if self.untranslated_name:
+            result["untranslated_name"] = self.untranslated_name
+        return result
 
 
 class JiraPriority(ApiModel):

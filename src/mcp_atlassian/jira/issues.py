@@ -906,9 +906,9 @@ class IssuesMixin(
                 type_name = issue_type.get("name", "")
                 if type_name.lower() == issue_type_name.lower():
                     return issue_type.get("id")
-            # Fallback: try untranslatedName if available
+            # Fallback: try untranslated_name if available
             for issue_type in issue_types:
-                untranslated = issue_type.get("untranslatedName", "")
+                untranslated = issue_type.get("untranslated_name", "")
                 if untranslated and untranslated.lower() == issue_type_name.lower():
                     return issue_type.get("id")
             return None
