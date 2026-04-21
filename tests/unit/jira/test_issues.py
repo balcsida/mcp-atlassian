@@ -1963,13 +1963,13 @@ class TestIssuesMixin:
         assert issues_mixin._find_issue_type_id("PROJ", "STORY") == "10001"
 
     def test_find_issue_type_id_untranslated_fallback(self, issues_mixin: IssuesMixin):
-        """_find_issue_type_id falls back to untranslatedName for localized instances."""
+        """_find_issue_type_id falls back to untranslated_name for localized instances."""
         issues_mixin.get_project_issue_types = MagicMock(
             return_value=[
-                {"id": "10001", "name": "스토리", "untranslatedName": "Story"},
+                {"id": "10001", "name": "스토리", "untranslated_name": "Story"},
             ]
         )
-        # Korean name doesn't match "Story", but untranslatedName does
+        # Korean name doesn't match "Story", but untranslated_name does
         assert issues_mixin._find_issue_type_id("PROJ", "Story") == "10001"
 
     def test_find_issue_type_id_not_found(self, issues_mixin: IssuesMixin):
