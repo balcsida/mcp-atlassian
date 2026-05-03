@@ -165,6 +165,20 @@ def mock_jira_fetcher():
 
     mock_fetcher.assign_issue.side_effect = mock_assign_issue
 
+    # Configure move_issue
+    def mock_move_issue(issue_key, target_project_key):
+        mock_issue = MagicMock()
+        new_key = f"{target_project_key}-999"
+        mock_issue.to_simplified_dict.return_value = {
+            "key": new_key,
+            "summary": "Moved Issue",
+            "status": {"name": "In Progress"},
+            "project": {"key": target_project_key},
+        }
+        return mock_issue
+
+    mock_fetcher.move_issue.side_effect = mock_move_issue
+
     # Configure batch_create_issues
     def mock_batch_create_issues(issues, validate_only=False):
         if not isinstance(issues, list):
@@ -432,6 +446,7 @@ def test_jira_mcp(mock_jira_fetcher, mock_base_jira_config):
         get_user_profile,
         get_worklog,
         link_to_epic,
+        move_issue,
         remove_issue_link,
         search,
         search_fields,
@@ -468,6 +483,7 @@ def test_jira_mcp(mock_jira_fetcher, mock_base_jira_config):
     jira_sub_mcp.add_tool(update_issue)
     jira_sub_mcp.add_tool(assign_issue)
     jira_sub_mcp.add_tool(delete_issue)
+    jira_sub_mcp.add_tool(move_issue)
     jira_sub_mcp.add_tool(add_comment)
     jira_sub_mcp.add_tool(edit_comment)
     jira_sub_mcp.add_tool(add_comment_with_media)
@@ -3074,3 +3090,47 @@ async def test_update_issue_without_attachments(jira_client, mock_jira_fetcher):
     mock_jira_fetcher.update_issue.assert_called_once()
     call_kwargs = mock_jira_fetcher.update_issue.call_args[1]
     assert "attachments" not in call_kwargs
+
+
+@pytest.mark.anyio
+async def test_jira_move_issue_success(jira_client, mock_jira_fetcher):
+    """Test successful cross-project issue move."""
+    response = await jira_client.call_tool(
+        "jira_move_issue",
+        {"issue_key": "PROJ-123", "target_project_key": "OTHER"},
+    )
+    content = json.loads(response.content[0].text)
+    assert "moved successfully" in content["message"]
+    assert "PROJ-123" in content["message"]
+    assert "OTHER" in content["message"]
+    assert content["issue"]["key"] == "OTHER-999"
+    assert content["issue"]["project"]["key"] == "OTHER"
+    mock_jira_fetcher.move_issue.assert_called_once_with("PROJ-123", "OTHER")
+
+
+@pytest.mark.anyio
+async def test_jira_move_issue_failure(jira_client, mock_jira_fetcher):
+    """Test that a move failure propagates as ToolError."""
+    mock_jira_fetcher.move_issue.side_effect = ValueError("Target project not found")
+
+    with pytest.raises(ToolError) as excinfo:
+        await jira_client.call_tool(
+            "jira_move_issue",
+            {"issue_key": "PROJ-123", "target_project_key": "NONEXISTENT"},
+        )
+    assert "Target project not found" in str(excinfo.value)
+
+
+@pytest.mark.anyio
+async def test_jira_move_issue_not_cloud(jira_client, mock_jira_fetcher):
+    """Test that calling move on a Server/DC instance raises ToolError."""
+    mock_jira_fetcher.move_issue.side_effect = NotImplementedError(
+        "Cross-project issue move is only available on Jira Cloud."
+    )
+
+    with pytest.raises(ToolError) as excinfo:
+        await jira_client.call_tool(
+            "jira_move_issue",
+            {"issue_key": "PROJ-123", "target_project_key": "OTHER"},
+        )
+    assert "Jira Cloud" in str(excinfo.value)
