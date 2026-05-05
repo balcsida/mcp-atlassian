@@ -3940,7 +3940,8 @@ async def get_issue_development_info(
         Field(
             description=(
                 "(Optional) Filter by application type (case-sensitive). "
-                "Examples: 'stash' (Bitbucket Server), 'bitbucket', 'GitHub', 'GitLab'"
+                "Examples: 'stash' (Bitbucket Server), 'bitbucket', 'GitHub', 'GitLab'. "
+                "If not specified, automatically discovers available types."
             )
         ),
     ] = None,
@@ -4005,7 +4006,9 @@ async def get_issues_development_info(
         Field(
             description=(
                 "(Optional) Filter by application type (case-sensitive). "
-                "Examples: 'stash' (Bitbucket Server), 'bitbucket', 'GitHub', 'GitLab'"
+                "Examples: 'stash' (Bitbucket Server), 'bitbucket', 'github', "
+                "'githube' (GitHub Enterprise Server), 'gitlab'. "
+                "If not specified, automatically discovers available types."
             )
         ),
     ] = None,
