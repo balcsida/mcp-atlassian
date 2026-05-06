@@ -10,6 +10,7 @@ from .comments import CommentsMixin
 from .config import ConfluenceConfig
 from .labels import LabelsMixin
 from .pages import PagesMixin
+from .permissions import PermissionsMixin
 from .restrictions import RestrictionsMixin
 from .search import SearchMixin
 from .spaces import SpacesMixin
@@ -26,6 +27,7 @@ class ConfluenceFetcher(
     UsersMixin,
     AnalyticsMixin,
     AttachmentsMixin,
+    PermissionsMixin,
     RestrictionsMixin,
     TemplatesMixin,
 ):
@@ -43,6 +45,7 @@ class ConfluenceFetcher(
     - UsersMixin: User operations
     - AnalyticsMixin: Page view analytics (Cloud only)
     - AttachmentsMixin: Attachment operations
+    - PermissionsMixin: Permission checking operations
     - RestrictionsMixin: Page restriction operations
     - TemplatesMixin: Template operations
     """
