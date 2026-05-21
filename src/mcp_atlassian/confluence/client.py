@@ -203,31 +203,29 @@ class ConfluenceClient:
             logger.debug(
                 "Testing Confluence authentication by making a simple API call..."
             )
-            if self.config.auth_type == "oauth" and getattr(
-                self.config, "is_cloud", False
-            ):
-                # OAuth Cloud: v1 /rest/api/space is 410 Gone. Use v2.
-                url = f"{self.confluence.url}/api/v2/spaces"
-                response = self.confluence._session.get(url, params={"limit": 1})
+            # /rest/api/space (v1) returns 410 Gone for OAuth on Cloud; the
+            # /api/v2/spaces endpoint is the supported replacement.
+            if self.config.auth_type == "oauth" and self.config.is_cloud:
+                v2_url = f"{self.confluence.url.rstrip('/')}/api/v2/spaces"
+                response = self.confluence._session.get(v2_url, params={"limit": 1})
                 response.raise_for_status()
                 results = response.json().get("results", [])
                 logger.info(
                     f"Confluence authentication successful. "
-                    f"v2 API call returned {len(results)} spaces."
-                )
-                return
-
-            spaces = self.confluence.get_all_spaces(start=0, limit=1)
-            if spaces is not None:
-                logger.info(
-                    f"Confluence authentication successful. "
-                    f"API call returned {len(spaces.get('results', []))} spaces."
+                    f"API call returned {len(results)} spaces."
                 )
             else:
-                logger.warning(
-                    "Confluence authentication test returned None - "
-                    "this may indicate an issue"
-                )
+                spaces = self.confluence.get_all_spaces(start=0, limit=1)
+                if spaces is not None:
+                    logger.info(
+                        f"Confluence authentication successful. "
+                        f"API call returned {len(spaces.get('results', []))} spaces."
+                    )
+                else:
+                    logger.warning(
+                        "Confluence authentication test returned None - "
+                        "this may indicate an issue"
+                    )
         except RequestsConnectionError as e:
             error_msg = (
                 f"Could not connect to Confluence at {self.config.url}. "

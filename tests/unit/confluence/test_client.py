@@ -9,6 +9,7 @@ import pytest
 from mcp_atlassian.confluence import ConfluenceFetcher
 from mcp_atlassian.confluence.client import ConfluenceClient
 from mcp_atlassian.confluence.config import ConfluenceConfig
+from mcp_atlassian.exceptions import MCPAtlassianAuthenticationError
 
 
 def test_init_with_basic_auth():
@@ -677,10 +678,31 @@ class TestValidateAuthentication:
             params={"limit": 1},
         )
         client.confluence.get_all_spaces.assert_not_called()
+        v2_response.raise_for_status.assert_called_once()
+
+    def test_oauth_cloud_v2_http_error_raises_auth_error(self) -> None:
+        """OAuth Cloud v2 validation failures surface as auth errors."""
+        client = self._make_client_stub(auth_type="oauth", is_cloud=True)
+        v2_response = MagicMock()
+        v2_response.raise_for_status.side_effect = Exception("401 Unauthorized")
+        client.confluence._session.get.return_value = v2_response
+
+        with pytest.raises(MCPAtlassianAuthenticationError):
+            client._validate_authentication()
 
     def test_non_oauth_falls_back_to_v1(self) -> None:
         """Basic/PAT/cert auth continues to probe with get_all_spaces."""
         client = self._make_client_stub(auth_type="basic", is_cloud=True)
+        client.confluence.get_all_spaces.return_value = {"results": []}
+
+        client._validate_authentication()
+
+        client.confluence.get_all_spaces.assert_called_once_with(start=0, limit=1)
+        client.confluence._session.get.assert_not_called()
+
+    def test_server_dc_oauth_falls_back_to_v1(self) -> None:
+        """Server/DC OAuth keeps using v1 get_all_spaces."""
+        client = self._make_client_stub(auth_type="oauth", is_cloud=False)
         client.confluence.get_all_spaces.return_value = {"results": []}
 
         client._validate_authentication()
