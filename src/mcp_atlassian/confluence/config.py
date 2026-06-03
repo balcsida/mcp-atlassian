@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass
 from typing import Literal
 
-from ..utils.env import get_custom_headers, is_env_ssl_verify
+from ..utils.env import get_custom_headers, is_env_ssl_verify, is_env_truthy
 from ..utils.oauth import (
     BYOAccessTokenOAuthConfig,
     OAuthConfig,
@@ -44,6 +44,14 @@ class ConfluenceConfig:
     cloud_id: str | None = (
         None  # Cloud ID — routes via api.atlassian.com (CONFLUENCE_CLOUD_ID > ATLASSIAN_CLOUD_ID)
     )
+    # Cloud removed the legacy /download/attachments/... endpoint (CHANGE-2735);
+    # it now 401s for API-token / scoped-token auth. Controls whether attachment
+    # downloads use the v1 REST endpoint
+    # (/rest/api/content/{id}/child/attachment/{aid}/download) instead:
+    #   None  -> auto: v1 on Cloud, legacy link on Server/DC (default)
+    #   True  -> always v1
+    #   False -> always the legacy link
+    attachment_download_use_v1: bool | None = None
 
     @property
     def is_cloud(self) -> bool:
@@ -220,6 +228,14 @@ class ConfluenceConfig:
         # Cloud ID for service accounts (CONFLUENCE_CLOUD_ID takes precedence over ATLASSIAN_CLOUD_ID)
         cloud_id = os.getenv("CONFLUENCE_CLOUD_ID") or os.getenv("ATLASSIAN_CLOUD_ID")
 
+        # Unset or empty/whitespace -> None (auto); only an explicit value forces.
+        _use_v1_raw = os.getenv("CONFLUENCE_ATTACHMENT_DOWNLOAD_USE_V1")
+        attachment_download_use_v1 = (
+            None
+            if _use_v1_raw is None or not _use_v1_raw.strip()
+            else is_env_truthy("CONFLUENCE_ATTACHMENT_DOWNLOAD_USE_V1")
+        )
+
         return cls(
             url=url or "",
             auth_type=auth_type,
@@ -240,6 +256,7 @@ class ConfluenceConfig:
             timeout=timeout,
             cookie=cookie,
             cloud_id=cloud_id,
+            attachment_download_use_v1=attachment_download_use_v1,
         )
 
     def is_auth_configured(self) -> bool:
