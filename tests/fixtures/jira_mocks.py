@@ -507,6 +507,7 @@ MOCK_JIRA_ISSUE_RESPONSE_SIMPLIFIED = {
         },
         "labels": ["test-label"],
         "fixVersions": [{"name": "v1.0"}],
+        "versions": [{"name": "v0.9"}],
         "attachment": [
             {
                 "id": "10000",
