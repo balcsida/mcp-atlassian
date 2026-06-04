@@ -16,6 +16,7 @@ from mcp_atlassian.jira.forms_common import convert_datetime_to_timestamp
 from mcp_atlassian.models.jira import JiraAttachment
 from mcp_atlassian.models.jira.adf import build_media_comment_adf
 from mcp_atlassian.models.jira.common import JiraUser
+from mcp_atlassian.servers.async_utils import run_jira_fetcher_call
 from mcp_atlassian.servers.dependencies import get_jira_fetcher
 from mcp_atlassian.utils.decorators import check_write_access
 from mcp_atlassian.utils.media import (
@@ -451,7 +452,8 @@ async def get_issue(
         expand = f"{expand},names" if expand else "names"
 
     # Fetch the issue (with augmented expand)
-    issue = jira.get_issue(
+    issue = await run_jira_fetcher_call(
+        jira.get_issue,
         issue_key=issue_key,
         fields=fields_list,
         expand=expand,
@@ -587,7 +589,8 @@ async def search(
     if use_display_names and (not expand or "names" not in expand):
         expand = f"{expand},names" if expand else "names"
 
-    search_result = jira.search_issues(
+    search_result = await run_jira_fetcher_call(
+        jira.search_issues,
         jql=jql,
         fields=fields_list,
         limit=limit,
