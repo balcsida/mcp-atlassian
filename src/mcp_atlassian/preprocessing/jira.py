@@ -628,6 +628,9 @@ class JiraPreprocessor(BasePreprocessor):
         output = re.sub(r"<([^>]+)>", r"[\1]", output)
 
         # Convert markdown tables to Jira table format
+        # Issue #1343: parse full table blocks (header + separator + data rows),
+        # strip whitespace from each cell, convert header to ||cell|| and data
+        # rows to |cell|.
         lines = output.split("\n")
         i = 0
         while i < len(lines):
