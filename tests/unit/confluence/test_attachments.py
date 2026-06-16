@@ -165,11 +165,13 @@ class TestAttachmentsMixin:
             assert call_args[1]["data"]["minorEdit"] == "false"
             # Note: comment is now in files dict as multipart form data, not in data dict
 
-    def test_upload_attachment_cloud_adds_wiki_prefix(
-        self, attachments_mixin: AttachmentsMixin
-    ):
-        """Bare Cloud URLs use the /wiki REST prefix."""
-        attachments_mixin.config.url = "https://test.atlassian.net"
+    def _capture_upload_url(self, attachments_mixin, config_url: str) -> str:
+        """Run an upload with the given config URL and return the request URL.
+
+        Sets ``config.url`` (which drives ``is_cloud``), performs an upload with
+        all file I/O mocked, and returns the URL passed to ``session.post``.
+        """
+        attachments_mixin.config.url = config_url
         self._mock_rest_api_upload(attachments_mixin)
 
         with (
@@ -184,9 +186,45 @@ class TestAttachmentsMixin:
                 "123456", "/absolute/path/test_file.txt"
             )
 
-        url = attachments_mixin.confluence._session.post.call_args[0][0]
-        assert url == (
-            "https://test.atlassian.net/wiki/rest/api/content/123456/child/attachment"
+        return attachments_mixin.confluence._session.post.call_args[0][0]
+
+    def test_upload_attachment_cloud_adds_wiki_prefix(
+        self, attachments_mixin: AttachmentsMixin
+    ):
+        """Cloud bare site URL gets the /wiki prefix (otherwise the call 404s)."""
+        url = self._capture_upload_url(attachments_mixin, "https://test.atlassian.net")
+
+        assert (
+            url == "https://test.atlassian.net/wiki"
+            "/rest/api/content/123456/child/attachment"
+        )
+
+    def test_upload_attachment_cloud_no_double_wiki_prefix(
+        self, attachments_mixin: AttachmentsMixin
+    ):
+        """Cloud URL already ending in /wiki must not become /wiki/wiki."""
+        url = self._capture_upload_url(
+            attachments_mixin, "https://test.atlassian.net/wiki"
+        )
+
+        assert "/wiki/wiki" not in url
+        assert (
+            url == "https://test.atlassian.net/wiki"
+            "/rest/api/content/123456/child/attachment"
+        )
+
+    def test_upload_attachment_server_dc_no_wiki_prefix(
+        self, attachments_mixin: AttachmentsMixin
+    ):
+        """Server/DC URLs are unchanged — no /wiki prefix is added."""
+        url = self._capture_upload_url(
+            attachments_mixin, "https://confluence.example.com"
+        )
+
+        assert "/wiki" not in url
+        assert (
+            url == "https://confluence.example.com"
+            "/rest/api/content/123456/child/attachment"
         )
 
     def test_upload_attachment_relative_path(self, attachments_mixin: AttachmentsMixin):
@@ -1182,22 +1220,48 @@ class TestAttachmentsMixin:
         assert "deleted successfully" in result["message"]
         attachments_mixin.confluence._session.delete.assert_called_once()
 
-    def test_delete_attachment_v1_cloud_adds_wiki_prefix(
-        self, attachments_mixin: AttachmentsMixin
-    ):
-        """Bare Cloud URLs use the /wiki REST prefix for v1 delete."""
-        attachments_mixin.config.auth_type = "basic"
-        attachments_mixin.config.url = "https://test.atlassian.net"
+    def _capture_delete_url(self, attachments_mixin, config_url: str) -> str:
+        """Run a v1 delete with the given config URL and return the request URL."""
+        attachments_mixin.config.auth_type = "basic"  # force v1 path
+        attachments_mixin.config.url = config_url
+
         mock_response = Mock()
         mock_response.raise_for_status.return_value = None
         attachments_mixin.confluence._session.delete.return_value = mock_response
 
-        result = attachments_mixin.delete_attachment("att123")
+        attachments_mixin.delete_attachment("att123")
 
-        assert result["success"] is True
-        attachments_mixin.confluence._session.delete.assert_called_once_with(
-            "https://test.atlassian.net/wiki/rest/api/content/att123"
+        return attachments_mixin.confluence._session.delete.call_args[0][0]
+
+    def test_delete_attachment_v1_cloud_adds_wiki_prefix(
+        self, attachments_mixin: AttachmentsMixin
+    ):
+        """Cloud bare site URL gets the /wiki prefix on the v1 delete endpoint."""
+        url = self._capture_delete_url(attachments_mixin, "https://test.atlassian.net")
+
+        assert url == "https://test.atlassian.net/wiki/rest/api/content/att123"
+
+    def test_delete_attachment_v1_cloud_no_double_wiki_prefix(
+        self, attachments_mixin: AttachmentsMixin
+    ):
+        """Cloud URL already ending in /wiki must not become /wiki/wiki."""
+        url = self._capture_delete_url(
+            attachments_mixin, "https://test.atlassian.net/wiki"
         )
+
+        assert "/wiki/wiki" not in url
+        assert url == "https://test.atlassian.net/wiki/rest/api/content/att123"
+
+    def test_delete_attachment_v1_server_dc_no_wiki_prefix(
+        self, attachments_mixin: AttachmentsMixin
+    ):
+        """Server/DC URLs are unchanged — no /wiki prefix is added."""
+        url = self._capture_delete_url(
+            attachments_mixin, "https://confluence.example.com"
+        )
+
+        assert "/wiki" not in url
+        assert url == "https://confluence.example.com/rest/api/content/att123"
 
     def test_delete_attachment_success_v2(self, attachments_mixin: AttachmentsMixin):
         """Test successful deletion using v2 API (OAuth)."""

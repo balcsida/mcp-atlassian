@@ -33,9 +33,20 @@ class AttachmentsMixin(ConfluenceClient, AttachmentsOperationsProto):
         return None
 
     def _rest_base_url(self) -> str:
+        """Return the REST API base URL, adding the Cloud ``/wiki`` prefix.
+
+        On Confluence Cloud, ``config.url`` is the bare site URL
+        (``https://site.atlassian.net``) but the REST API is served under
+        ``/wiki``. Hand-built URLs must include this prefix or requests 404.
+        The ``endswith`` guard avoids producing ``/wiki/wiki`` when the
+        configured URL already includes the prefix.
+
+        Returns:
+            The base URL to use for direct REST API calls.
+        """
         base_url = self.config.url.rstrip("/")
         if self.config.is_cloud and not base_url.endswith("/wiki"):
-            return f"{base_url}/wiki"
+            base_url = f"{base_url}/wiki"
         return base_url
 
     def upload_attachment(
