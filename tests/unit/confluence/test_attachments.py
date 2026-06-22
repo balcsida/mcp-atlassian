@@ -163,6 +163,30 @@ class TestAttachmentsMixin:
             assert call_args[1]["data"]["minorEdit"] == "false"
             # Note: comment is now in files dict as multipart form data, not in data dict
 
+    def test_upload_attachment_cloud_adds_wiki_prefix(
+        self, attachments_mixin: AttachmentsMixin
+    ):
+        """Bare Cloud URLs use the /wiki REST prefix."""
+        attachments_mixin.config.url = "https://test.atlassian.net"
+        self._mock_rest_api_upload(attachments_mixin)
+
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("os.path.getsize", return_value=100),
+            patch("os.path.isabs", return_value=True),
+            patch("os.path.abspath", return_value="/absolute/path/test_file.txt"),
+            patch("os.path.basename", return_value="test_file.txt"),
+            patch("builtins.open", mock_open(read_data=b"test content")),
+        ):
+            attachments_mixin.upload_attachment(
+                "123456", "/absolute/path/test_file.txt"
+            )
+
+        url = attachments_mixin.confluence._session.post.call_args[0][0]
+        assert url == (
+            "https://test.atlassian.net/wiki/rest/api/content/123456/child/attachment"
+        )
+
     def test_upload_attachment_relative_path(self, attachments_mixin: AttachmentsMixin):
         """Test attachment upload with a relative path."""
         # Mock the REST API call
@@ -1089,6 +1113,23 @@ class TestAttachmentsMixin:
         assert result["attachment_id"] == "att123"
         assert "deleted successfully" in result["message"]
         attachments_mixin.confluence._session.delete.assert_called_once()
+
+    def test_delete_attachment_v1_cloud_adds_wiki_prefix(
+        self, attachments_mixin: AttachmentsMixin
+    ):
+        """Bare Cloud URLs use the /wiki REST prefix for v1 delete."""
+        attachments_mixin.config.auth_type = "basic"
+        attachments_mixin.config.url = "https://test.atlassian.net"
+        mock_response = Mock()
+        mock_response.raise_for_status.return_value = None
+        attachments_mixin.confluence._session.delete.return_value = mock_response
+
+        result = attachments_mixin.delete_attachment("att123")
+
+        assert result["success"] is True
+        attachments_mixin.confluence._session.delete.assert_called_once_with(
+            "https://test.atlassian.net/wiki/rest/api/content/att123"
+        )
 
     def test_delete_attachment_success_v2(self, attachments_mixin: AttachmentsMixin):
         """Test successful deletion using v2 API (OAuth)."""
