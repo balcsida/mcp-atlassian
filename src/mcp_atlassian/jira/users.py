@@ -124,6 +124,7 @@ class UsersMixin(JiraClient):
         # Atlassian account IDs come in two formats:
         #   - 24-char hex string: e.g. 606b8fb83a516300764cb19d
         #   - digits:uuid: e.g. 712020:96a182bb-ee48-4240-8465-a7236ccfce2a
+        assignee = assignee.removeprefix("accountid:")
         if re.fullmatch(r"[0-9a-f]{24}", assignee) or re.fullmatch(
             r"\d+:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
             assignee,

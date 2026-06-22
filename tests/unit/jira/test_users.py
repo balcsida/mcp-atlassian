@@ -164,6 +164,15 @@ class TestUsersMixin:
         # No lookups should be performed for recognized account IDs
         users_mixin.jira.user_find_by_user_string.assert_not_called()
 
+    def test_get_account_id_strips_accountid_prefix(self, users_mixin):
+        """Documented accountid: prefixes resolve without lookup."""
+        result = users_mixin._get_account_id(
+            "accountid:712020:96a182bb-ee48-4240-8465-a7236ccfce2a"
+        )
+
+        assert result == "712020:96a182bb-ee48-4240-8465-a7236ccfce2a"
+        users_mixin.jira.user_find_by_user_string.assert_not_called()
+
     @pytest.mark.parametrize(
         "not_account_id",
         [
