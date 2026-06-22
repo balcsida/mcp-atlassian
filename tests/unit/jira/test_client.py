@@ -103,6 +103,28 @@ def test_init_with_token_auth():
         assert client.config == config
 
 
+def test_create_version_uses_v2_for_server():
+    """Server/DC version creation uses REST v2."""
+    with (
+        patch("mcp_atlassian.jira.client.Jira") as mock_jira,
+        patch("mcp_atlassian.jira.client.configure_ssl_verification"),
+    ):
+        mock_jira.return_value.post.return_value = {"id": "10000"}
+        config = JiraConfig(
+            url="https://jira.example.com",
+            auth_type="pat",
+            personal_token="test_personal_token",
+        )
+        client = JiraClient(config=config)
+
+        result = client.create_version("PROJ", "1.0")
+
+        assert result == {"id": "10000"}
+        mock_jira.return_value.post.assert_called_once_with(
+            "/rest/api/2/version", data={"project": "PROJ", "name": "1.0"}
+        )
+
+
 def test_init_from_env():
     """Test initializing the client from environment variables."""
     with (
