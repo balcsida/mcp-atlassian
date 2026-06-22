@@ -2892,6 +2892,38 @@ class TestPageHierarchy:
         assert pages[1]["id"] == "456"  # position 1
         assert pages[2]["id"] == "789"  # position 2
 
+    def test_get_space_page_tree_normalizes_string_positions(self, pages_mixin):
+        """Server/DC string positions do not break sorting."""
+        mock_pages = [
+            {
+                "id": "1",
+                "title": "Ordered",
+                "ancestors": [],
+                "extensions": {"position": 0},
+            },
+            {
+                "id": "2",
+                "title": "Unordered",
+                "ancestors": [],
+                "extensions": {"position": "none"},
+            },
+            {
+                "id": "3",
+                "title": "Numeric",
+                "ancestors": [],
+                "extensions": {"position": "5"},
+            },
+        ]
+        pages_mixin.confluence.get_all_pages_from_space_raw = MagicMock(
+            return_value=self._raw_response(mock_pages)
+        )
+
+        pages = pages_mixin.get_space_page_tree("TEST")["pages"]
+
+        assert [page["id"] for page in pages] == ["1", "3", "2"]
+        assert pages[1]["position"] == 5
+        assert pages[2]["position"] is None
+
     def test_pagination_multiple_batches(self, pages_mixin):
         """Test that pagination fetches across multiple API batches."""
         batch1 = [
