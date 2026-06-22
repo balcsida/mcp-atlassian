@@ -769,6 +769,17 @@ class TestIssuesMixin:
         assert not issues_mixin._get_account_id.called
         assert document.key == "TEST-123"
 
+    def test_update_issue_unresolvable_assignee_raises(self, issues_mixin: IssuesMixin):
+        """Unresolvable assignees must not be silently ignored."""
+        issues_mixin._get_account_id = MagicMock(
+            side_effect=ValueError("Could not find account ID for user: ghost")
+        )
+
+        with pytest.raises(ValueError, match="Could not update assignee"):
+            issues_mixin.update_issue(issue_key="TEST-123", assignee="ghost")
+
+        issues_mixin.jira.update_issue.assert_not_called()
+
     def test_assign_issue(self, issues_mixin: IssuesMixin, make_issue_data):
         """Test assigning an issue to a user via dedicated endpoint."""
         issues_mixin.jira.get_issue.return_value = make_issue_data(
