@@ -622,9 +622,19 @@ class JiraPreprocessor(BasePreprocessor):
         lines = output.split("\n")
         i = 0
         while i < len(lines):
-            if i < len(lines) - 1 and re.match(r"\|[-\s|]+\|", lines[i + 1]):
-                lines[i] = lines[i].replace("|", "||")
+            if (
+                i < len(lines) - 1
+                and re.match(r"^\|[-\s|:]+\|$", lines[i + 1])
+                and re.match(r"^\|.*\|$", lines[i])
+            ):
+                cells = [cell.strip() for cell in lines[i].split("|")[1:-1]]
+                lines[i] = "||" + "||".join(cells) + "||"
                 lines.pop(i + 1)
+
+                while i + 1 < len(lines) and re.match(r"^\|.*\|$", lines[i + 1]):
+                    cells = [cell.strip() for cell in lines[i + 1].split("|")[1:-1]]
+                    lines[i + 1] = "|" + "|".join(cells) + "|"
+                    i += 1
             i += 1
 
         # Rejoin the lines

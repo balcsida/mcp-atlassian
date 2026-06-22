@@ -919,11 +919,10 @@ def test_converts_html_color_span(preprocessor_with_jira):
 
 
 def test_converts_markdown_table(preprocessor_with_jira):
-    """Markdown table header row converts to Jira double-pipe header syntax."""
+    """Markdown table rows convert to compact Jira table syntax."""
     md = "| Col A | Col B |\n|-------|-------|\n| val 1 | val 2 |"
     result = preprocessor_with_jira.markdown_to_jira(md)
-    assert "|| Col A || Col B ||" in result
-    assert "| val 1 | val 2 |" in result
+    assert result == "||Col A||Col B||\n|val 1|val 2|"
 
 
 def test_converts_markdown_blockquote(preprocessor_with_jira):
