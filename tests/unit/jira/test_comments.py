@@ -804,15 +804,40 @@ class TestCommentsMixin:
         comments_mixin.jira.post.assert_not_called()
         assert result["id"] == "10001"
 
+    def test_add_comment_adf_cloud(self, comments_mixin):
+        """add_comment_adf posts a prebuilt ADF body via v3 and returns it."""
+        mock_response = {
+            "id": "20002",
+            "body": {"version": 1, "type": "doc", "content": []},
+            "created": "2024-01-01T10:00:00.000+0000",
+            "author": {"displayName": "John Doe"},
+        }
+        comments_mixin._post_api3 = Mock(return_value=mock_response)
+        adf = {
+            "version": 1,
+            "type": "doc",
+            "content": [{"type": "paragraph", "content": []}],
+        }
+
+        result = comments_mixin.add_comment_adf("TEST-123", adf)
+
+        comments_mixin._post_api3.assert_called_once()
+        call_args = comments_mixin._post_api3.call_args
+        assert call_args[0][0] == "issue/TEST-123/comment"
+        assert call_args[0][1]["body"] == adf
+        assert result["id"] == "20002"
+        assert result["author"] == "John Doe"
+
+    def test_add_comment_adf_server_rejected(self, server_comments_mixin):
+        """add_comment_adf is Cloud-only and raises on Server/DC."""
+        with pytest.raises(ValueError, match="Jira Cloud only"):
+            server_comments_mixin.add_comment_adf(
+                "TEST-123", {"version": 1, "type": "doc", "content": []}
+            )
+
 
 class TestInternalCommentPublicParam:
-    """Regression tests for add_comment public parameter (internal comments).
-
-    Regression for https://github.com/sooperset/mcp-atlassian/issues/716
-    Feature was requested: make comment internal (public: false) via JSM API.
-    Already implemented: add_comment(public=False) routes through
-    _add_servicedesk_comment which posts to rest/servicedeskapi/request/.../comment.
-    """
+    """Regression tests for add_comment public parameter (internal comments)."""
 
     SERVICEDESK_COMMENT_RESPONSE = {
         "id": 10001,
