@@ -62,26 +62,29 @@ def _parse_inline_formatting(
     """Parse inline Markdown formatting into ADF inline nodes.
 
     Handles: bold (**), italic (*), inline code (`), links ([text](url)),
-    mentions (@[name](accountid:xxx)), strikethrough (~~), and Jira issue keys.
+    strikethrough (~~), Jira issue keys, and user mentions
+    (``[~accountid:<id>]``, ``@[name](accountid:<id>)``, or
+    ``@[name](<id>)``).
 
     Args:
         text: Raw text potentially containing inline Markdown formatting.
         jira_base_url: Jira base URL used to link bare issue keys.
 
     Returns:
-        List of ADF inline nodes (text nodes with optional marks).
+        List of ADF inline nodes (text/mention nodes with optional marks).
     """
     if not text:
         return []
 
     nodes: list[dict[str, Any]] = []
-    # Pattern order matters: mention before link (to catch @[name](accountid:xxx)),
-    # bold before italic, code before others
+    # Pattern order matters: mentions before links (so ``@[name](id)`` is not
+    # parsed as a link), bold before italic, code before others.
     inline_re = re.compile(
-        r"`(?P<code_inner>[^`]+)`"
+        r"\[~accountid:(?P<mention_accountid>[^\]]+)\]"
+        r"|@\[(?P<mention_name>[^\]]+)\]\((?:accountid:)?(?P<mention_id>[^)]+)\)"
+        r"|`(?P<code_inner>[^`]+)`"
         r"|\*\*(?P<bold_inner>.+?)\*\*"
         r"|~~(?P<strike_inner>.+?)~~"
-        r"|@\[(?P<mention_text>[^\]]+)\]\(accountid:(?P<mention_id>[^)]+)\)"
         r"|\[(?P<link_text>[^\]]+)\]\((?P<link_href>[^)]+)\)"
         r"|(?<!\*)\*(?!\*)(?P<italic_inner>.+?)(?<!\*)\*(?!\*)"
     )
@@ -93,7 +96,24 @@ def _parse_inline_formatting(
             plain = text[pos : m.start()]
             _append_text_nodes(nodes, plain, jira_base_url)
 
-        if m.group("code_inner") is not None:
+        if m.group("mention_accountid") is not None:
+            nodes.append(
+                {
+                    "type": "mention",
+                    "attrs": {"id": m.group("mention_accountid")},
+                }
+            )
+        elif m.group("mention_id") is not None:
+            nodes.append(
+                {
+                    "type": "mention",
+                    "attrs": {
+                        "id": m.group("mention_id"),
+                        "text": f"@{m.group('mention_name')}",
+                    },
+                }
+            )
+        elif m.group("code_inner") is not None:
             nodes.append(
                 {
                     "type": "text",
@@ -114,17 +134,6 @@ def _parse_inline_formatting(
                 m.group("strike_inner"),
                 jira_base_url,
                 [{"type": "strike"}],
-            )
-        elif m.group("mention_text") is not None:
-            # Fix for #1208: Generate ADF mention node for @[name](accountid:xxx)
-            nodes.append(
-                {
-                    "type": "mention",
-                    "attrs": {
-                        "id": m.group("mention_id"),
-                        "text": f"@{m.group('mention_text')}",
-                    },
-                }
             )
         elif m.group("link_text") is not None:
             nodes.append(
