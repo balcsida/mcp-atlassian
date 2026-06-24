@@ -260,6 +260,61 @@ class TestMCPProtocolIntegration:
             assert "confluence_create_page" not in tool_names
             assert len(tools) == 3
 
+    @pytest.mark.parametrize(
+        ("allow_delete", "expected_delete_present"),
+        [(False, False), (True, True)],
+    )
+    async def test_tool_filtering_delete_tools(
+        self,
+        atlassian_mcp_server,
+        mock_jira_config,
+        mock_confluence_config,
+        allow_delete,
+        expected_delete_present,
+    ):
+        """Delete tools are hidden unless explicitly allowed."""
+        with MockEnvironment.basic_auth_env():
+            app_context = MainAppContext(
+                full_jira_config=mock_jira_config,
+                full_confluence_config=mock_confluence_config,
+                read_only=False,
+                allow_delete=allow_delete,
+                enabled_tools=None,
+            )
+
+            request_context = MagicMock()
+            request_context.lifespan_context = {"app_lifespan_context": app_context}
+
+            atlassian_mcp_server._mcp_server = MagicMock()
+            atlassian_mcp_server._mcp_server.request_context = request_context
+
+            async def mock_list_tools():
+                tools = []
+                for tool_name, tags in [
+                    ("jira_get_issue", {"jira", "read"}),
+                    ("jira_create_issue", {"jira", "write"}),
+                    ("jira_delete_issue", {"jira", "write", "delete"}),
+                ]:
+                    tool = MagicMock(spec=FastMCPTool)
+                    tool.tags = tags
+                    tool.to_mcp_tool.return_value = MCPTool(
+                        name=tool_name,
+                        description=f"Tool {tool_name}",
+                        inputSchema={"type": "object", "properties": {}},
+                    )
+                    tool.name = tool_name
+                    tools.append(tool)
+                return tools
+
+            atlassian_mcp_server.list_tools = mock_list_tools
+
+            tools = await atlassian_mcp_server._list_tools_mcp()
+
+            tool_names = [tool.name for tool in tools]
+            assert "jira_get_issue" in tool_names
+            assert "jira_create_issue" in tool_names
+            assert ("jira_delete_issue" in tool_names) is expected_delete_present
+
     async def test_tool_filtering_with_enabled_tools(
         self, atlassian_mcp_server, mock_jira_config, mock_confluence_config
     ):

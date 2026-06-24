@@ -29,7 +29,7 @@ from mcp_atlassian.jira import JiraFetcher
 from mcp_atlassian.jira.config import JiraConfig
 from mcp_atlassian.utils.env import is_env_truthy
 from mcp_atlassian.utils.environment import get_available_services
-from mcp_atlassian.utils.io import is_read_only_mode
+from mcp_atlassian.utils.io import is_delete_tools_allowed, is_read_only_mode
 from mcp_atlassian.utils.logging import mask_sensitive
 from mcp_atlassian.utils.oauth import (
     CLOUD_AUTHORIZE_URL,
@@ -195,6 +195,7 @@ async def main_lifespan(app: FastMCP[MainAppContext]) -> AsyncIterator[dict[str,
     logger.info("Main Atlassian MCP server lifespan starting...")
     services = get_available_services()
     read_only = is_read_only_mode()
+    allow_delete = is_delete_tools_allowed()
     enabled_tools = get_enabled_tools()
     enabled_toolsets = get_enabled_toolsets()
 
@@ -267,10 +268,12 @@ async def main_lifespan(app: FastMCP[MainAppContext]) -> AsyncIterator[dict[str,
             and resolver.has_deferred_credentials("confluence")
         ),
         read_only=read_only,
+        allow_delete=allow_delete,
         enabled_tools=enabled_tools,
         enabled_toolsets=enabled_toolsets,
     )
     logger.info(f"Read-only mode: {'ENABLED' if read_only else 'DISABLED'}")
+    logger.info(f"Delete tools: {'ALLOWED' if allow_delete else 'BLOCKED'}")
     logger.info(f"Enabled tools filter: {enabled_tools or 'All tools enabled'}")
     logger.info(f"Enabled toolsets filter: {sorted(enabled_toolsets)}")
 
@@ -335,6 +338,11 @@ class AtlassianMCP(ErrorPreservingFastMCP[MainAppContext]):
             if app_lifespan_state
             else False
         )
+        allow_delete = (
+            getattr(app_lifespan_state, "allow_delete", False)
+            if app_lifespan_state
+            else False
+        )
         enabled_tools_filter = (
             getattr(app_lifespan_state, "enabled_tools", None)
             if app_lifespan_state
@@ -383,6 +391,12 @@ class AtlassianMCP(ErrorPreservingFastMCP[MainAppContext]):
             if tool_obj and read_only and "write" in tool_tags:
                 logger.debug(
                     f"Excluding tool '{registered_name}' due to read-only mode and 'write' tag"
+                )
+                continue
+
+            if not allow_delete and "delete" in tool_tags:
+                logger.debug(
+                    f"Excluding tool '{registered_name}' due to delete tools being blocked"
                 )
                 continue
 

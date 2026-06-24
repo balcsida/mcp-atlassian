@@ -1550,7 +1550,7 @@ async def upload_attachment(
 
 
 @jira_mcp.tool(
-    tags={"jira", "write", "toolset:jira_attachments"},
+    tags={"jira", "write", "delete", "toolset:jira_attachments"},
     annotations={"title": "Delete Attachment", "destructiveHint": True},
 )
 @check_write_access
@@ -2319,7 +2319,7 @@ async def assign_issue(
 
 
 @jira_mcp.tool(
-    tags={"jira", "write", "toolset:jira_issues"},
+    tags={"jira", "write", "delete", "toolset:jira_issues"},
     annotations={"title": "Delete Issue", "destructiveHint": True},
 )
 @check_write_access
@@ -2540,7 +2540,7 @@ async def edit_comment(
 
 
 @jira_mcp.tool(
-    tags={"jira", "write", "toolset:jira_comments"},
+    tags={"jira", "write", "delete", "toolset:jira_comments"},
     annotations={"title": "Delete Comment", "destructiveHint": True},
 )
 @check_write_access
