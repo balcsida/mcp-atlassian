@@ -203,6 +203,34 @@ def test_process_html_content_error_handling(preprocessor_with_confluence):
         )
 
 
+def test_process_rendered_html_content_preserves_links(preprocessor_with_confluence):
+    """Rendered Confluence body.view HTML should keep normal links in markdown."""
+    html = (
+        '<p>See <a href="https://example.com/page">My Page</a> for details.</p>'
+        "<h2>Section</h2>"
+        "<p>A <strong>bold</strong> word.</p>"
+    )
+
+    returned_html, markdown = (
+        preprocessor_with_confluence.process_rendered_html_content(html)
+    )
+
+    assert returned_html == html
+    assert "[My Page](https://example.com/page)" in markdown
+    assert "## Section" in markdown
+    assert "**bold**" in markdown
+
+
+def test_process_rendered_html_content_empty_input(preprocessor_with_confluence):
+    """Empty rendered HTML returns empty output."""
+    returned_html, markdown = (
+        preprocessor_with_confluence.process_rendered_html_content("")
+    )
+
+    assert returned_html == ""
+    assert markdown == ""
+
+
 def test_clean_jira_text_with_invalid_html(preprocessor_with_jira):
     """Test cleaning Jira text with invalid HTML."""
     text = "<p>Unclosed paragraph with <b>bold</b"

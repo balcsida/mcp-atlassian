@@ -40,7 +40,7 @@ class TestPagesMixin:
         # Assert
         pages_mixin.confluence.get_page_by_id.assert_called_once_with(
             page_id=page_id,
-            expand="body.storage,version,space,children.attachment,history,ancestors",
+            expand="body.view,version,space,children.attachment,history,ancestors",
         )
 
         # Verify result structure
@@ -68,6 +68,29 @@ class TestPagesMixin:
         assert len(result.attachments) == 2
         assert result.attachments[0].id is not None
         assert result.attachments[1].id is not None
+
+    def test_get_page_content_uses_rendered_view_for_markdown(self, pages_mixin):
+        """Markdown mode should prefer rendered view HTML to preserve links/macros."""
+        page_id = "987654321"
+        pages_mixin.config.url = "https://example.atlassian.net/wiki"
+        rendered_html = (
+            '<p>See <a href="https://example.com/page">linked page</a>.</p>'
+        )
+        pages_mixin.confluence.get_page_by_id.return_value["body"]["view"] = {
+            "value": rendered_html
+        }
+        pages_mixin.preprocessor.process_rendered_html_content.return_value = (
+            rendered_html,
+            "See [linked page](https://example.com/page).",
+        )
+
+        result = pages_mixin.get_page_content(page_id, convert_to_markdown=True)
+
+        assert result.content == "See [linked page](https://example.com/page)."
+        pages_mixin.preprocessor.process_rendered_html_content.assert_called_once_with(
+            rendered_html
+        )
+        pages_mixin.preprocessor.process_html_content.assert_not_called()
 
     def test_get_page_content_includes_ancestors_in_response(self, pages_mixin):
         """Ancestors in API response flow through to ConfluencePage model.
@@ -222,7 +245,7 @@ class TestPagesMixin:
 
         # Verify API calls
         pages_mixin.confluence.get_page_by_title.assert_called_once_with(
-            space=space_key, title=title, expand="body.storage,version"
+            space=space_key, title=title, expand="body.view,version"
         )
 
         # Verify result
@@ -266,7 +289,7 @@ class TestPagesMixin:
         # Assert
         assert result is None
         pages_mixin.confluence.get_page_by_title.assert_called_once_with(
-            space="NONEXISTENT", title="Page Title", expand="body.storage,version"
+            space="NONEXISTENT", title="Page Title", expand="body.view,version"
         )
 
     def test_get_page_by_title_page_not_found(self, pages_mixin):
@@ -280,7 +303,7 @@ class TestPagesMixin:
         # Assert
         assert result is None
         pages_mixin.confluence.get_page_by_title.assert_called_once_with(
-            space="PROJ", title="Nonexistent Page", expand="body.storage,version"
+            space="PROJ", title="Nonexistent Page", expand="body.view,version"
         )
 
     def test_get_page_by_title_error_handling(self, pages_mixin):
@@ -307,7 +330,7 @@ class TestPagesMixin:
 
         # Assert
         pages_mixin.confluence.get_all_pages_from_space.assert_called_once_with(
-            space=space_key, start=0, limit=10, expand="body.storage"
+            space=space_key, start=0, limit=10, expand="body.view"
         )
 
         # Verify results
@@ -880,7 +903,7 @@ class TestPagesMixin:
         # Verify the API call
         pages_mixin.confluence.get_page_by_id.assert_called_once_with(
             page_id=page_id,
-            expand="body.storage,version,space,children.attachment,history,ancestors",
+            expand="body.view,version,space,children.attachment,history,ancestors",
         )
 
         # Verify the result
@@ -1236,7 +1259,7 @@ class TestPagesMixin:
             page_id=page_id,
             status="historical",
             version=version,
-            expand="body.storage,version,space,children.attachment,history,ancestors",
+            expand="body.view,version,space,children.attachment,history,ancestors",
         )
 
         # Verify result is a ConfluencePage
@@ -1661,7 +1684,7 @@ class TestPagesOAuthMixin:
             # Assert that v2 API was used instead of v1
             mock_v2_adapter.get_page.assert_called_once_with(
                 page_id=page_id,
-                expand="body.storage,version,space,children.attachment,history,ancestors",
+                expand="body.view,version,space,children.attachment,history,ancestors",
             )
 
             # Verify v1 API was NOT called
@@ -1752,7 +1775,7 @@ class TestPagesOAuthMixin:
             mock_v2_adapter.get_page_by_version.assert_called_once_with(
                 page_id=page_id,
                 version=version,
-                expand="body.storage,version,space,children.attachment,history,ancestors",
+                expand="body.view,version,space,children.attachment,history,ancestors",
             )
 
             # Verify v1 API was NOT called

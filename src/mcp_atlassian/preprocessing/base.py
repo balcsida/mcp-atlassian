@@ -139,6 +139,19 @@ class BasePreprocessor:
             logger.error(f"Error in process_html_content: {str(e)}")
             raise
 
+    def process_rendered_html_content(self, html_content: str) -> tuple[str, str]:
+        """Process Confluence-rendered HTML to markdown.
+
+        ``body.view`` content is already rendered by Confluence, so it contains
+        normal HTML links and macro output instead of storage-format XML tags.
+        """
+        try:
+            processed_markdown = md(html_content, heading_style="ATX", bullets="-")
+            return html_content, processed_markdown
+        except Exception as e:
+            logger.error(f"Error in process_rendered_html_content: {str(e)}")
+            raise
+
     def _process_user_mentions_in_soup(
         self, soup: BeautifulSoup, confluence_client: ConfluenceClient | None = None
     ) -> None:
