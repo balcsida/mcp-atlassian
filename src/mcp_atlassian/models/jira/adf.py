@@ -186,6 +186,23 @@ def _make_list_item(text: str, jira_base_url: str = "") -> dict[str, Any]:
     return {"type": "listItem", "content": [_make_paragraph(text, jira_base_url)]}
 
 
+_TASK_LINE_RE = re.compile(r"^[-*]\s+\[(?P<state>[ xX])\]\s+(?P<text>.*)$")
+
+
+def _make_task_item(
+    text: str, checked: bool, local_id: str, jira_base_url: str = ""
+) -> dict[str, Any]:
+    """Create an ADF taskItem node with parsed inline content."""
+    content = _parse_inline_formatting(text, jira_base_url)
+    if not content:
+        content = [{"type": "text", "text": ""}]
+    return {
+        "type": "taskItem",
+        "attrs": {"localId": local_id, "state": "DONE" if checked else "TODO"},
+        "content": content,
+    }
+
+
 # A list marker is "- ", "* " or "<digits>. " possibly preceded by spaces or tabs.
 # Tabs are normalized to four spaces before the indent is measured.
 _LIST_LINE_RE = re.compile(r"^(?P<indent>[ \t]*)(?P<marker>[-*]|\d+\.)\s+(?P<text>.*)$")
@@ -412,6 +429,36 @@ def markdown_to_adf(markdown_text: str, jira_base_url: str = "") -> dict[str, An
                 }
                 doc["content"].append(panel_node)
                 continue
+
+        # --- Task list ---
+        task_match = _TASK_LINE_RE.match(line)
+        if task_match:
+            task_items: list[dict[str, Any]] = []
+            task_start = i
+            task_counter = 0
+            while i < len(lines):
+                match = _TASK_LINE_RE.match(lines[i])
+                if match is None:
+                    break
+                task_counter += 1
+                checked = match.group("state").lower() == "x"
+                task_items.append(
+                    _make_task_item(
+                        match.group("text"),
+                        checked,
+                        f"task-{task_start}-{task_counter}",
+                        jira_base_url,
+                    )
+                )
+                i += 1
+            doc["content"].append(
+                {
+                    "type": "taskList",
+                    "attrs": {"localId": f"tasklist-{task_start}"},
+                    "content": task_items,
+                }
+            )
+            continue
 
         # --- List (ordered or unordered, with nesting) ---
         marker = _list_marker(line)

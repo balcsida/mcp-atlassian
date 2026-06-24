@@ -605,6 +605,66 @@ class TestMarkdownToAdf:
         bl = result["content"][0]
         assert bl["content"][0]["content"][1]["type"] == "bulletList"
 
+    def test_task_list_checked(self):
+        """Checked GFM task items produce taskItem state DONE."""
+        result = markdown_to_adf("- [x] done task")
+        task_list = next(n for n in result["content"] if n["type"] == "taskList")
+
+        assert task_list["attrs"]["localId"]
+        task_item = task_list["content"][0]
+        assert task_item["type"] == "taskItem"
+        assert task_item["attrs"]["state"] == "DONE"
+        assert task_item["attrs"]["localId"]
+        assert task_item["content"][0]["text"] == "done task"
+
+    def test_task_list_unchecked(self):
+        """Unchecked GFM task items produce taskItem state TODO."""
+        result = markdown_to_adf("- [ ] pending task")
+        task_list = next(n for n in result["content"] if n["type"] == "taskList")
+
+        assert task_list["content"][0]["attrs"]["state"] == "TODO"
+
+    def test_task_list_mixed_contiguous_items(self):
+        """Contiguous checked and unchecked tasks share one taskList."""
+        result = markdown_to_adf("- [x] done\n- [ ] todo\n* [X] also done")
+        task_list = next(n for n in result["content"] if n["type"] == "taskList")
+
+        assert [item["attrs"]["state"] for item in task_list["content"]] == [
+            "DONE",
+            "TODO",
+            "DONE",
+        ]
+        assert [item["content"][0]["text"] for item in task_list["content"]] == [
+            "done",
+            "todo",
+            "also done",
+        ]
+
+    def test_task_list_preserves_inline_formatting_and_issue_links(self):
+        """Task item text uses the same inline parser as paragraphs."""
+        result = markdown_to_adf(
+            "- [ ] Fix **PROJ-123**",
+            jira_base_url="https://jira.example.com",
+        )
+        task_item = next(n for n in result["content"] if n["type"] == "taskList")[
+            "content"
+        ][0]
+        issue_node = next(
+            n for n in task_item["content"] if n.get("text") == "PROJ-123"
+        )
+
+        mark_types = {mark["type"] for mark in issue_node["marks"]}
+        assert mark_types == {"strong", "link"}
+        link_mark = next(mark for mark in issue_node["marks"] if mark["type"] == "link")
+        assert link_mark["attrs"]["href"] == "https://jira.example.com/browse/PROJ-123"
+
+    def test_task_list_not_confused_with_bullet_list(self):
+        """Regular bullet items remain bulletList nodes."""
+        result = markdown_to_adf("- regular item")
+
+        assert any(n["type"] == "bulletList" for n in result["content"])
+        assert not any(n["type"] == "taskList" for n in result["content"])
+
     # -- Blockquote ---------------------------------------------------------
 
     def test_blockquote(self):
@@ -764,6 +824,7 @@ class TestMarkdownToAdf:
         text_back = adf_to_text(adf) or ""
         for word in ["Hello", "world", "bold", "italic", "text"]:
             assert word in text_back
+
 
 class TestMarkdownToAdfPanels:
     """Tests for panel node support in markdown_to_adf."""
