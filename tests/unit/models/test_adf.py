@@ -450,6 +450,47 @@ class TestMarkdownToAdf:
         link_mark = next(m for m in link_node["marks"] if m["type"] == "link")
         assert link_mark["attrs"]["href"] == "https://jira.example.com/browse/PROJ-123"
 
+    def test_bare_jira_url_produces_inline_card(self):
+        """A bare Jira browse URL becomes an ADF inlineCard node."""
+        result = markdown_to_adf("https://example.atlassian.net/browse/PROJ-123")
+        para = result["content"][0]
+        cards = [node for node in para["content"] if node["type"] == "inlineCard"]
+
+        assert cards == [
+            {
+                "type": "inlineCard",
+                "attrs": {"url": "https://example.atlassian.net/browse/PROJ-123"},
+            }
+        ]
+
+    def test_bare_jira_url_in_sentence_produces_inline_card(self):
+        """A bare Jira browse URL embedded in prose becomes an inlineCard."""
+        result = markdown_to_adf(
+            "See https://example.atlassian.net/browse/TIP-42 for context."
+        )
+        para = result["content"][0]
+        card = next(node for node in para["content"] if node["type"] == "inlineCard")
+
+        assert card["attrs"]["url"] == "https://example.atlassian.net/browse/TIP-42"
+        assert "".join(node.get("text", "") for node in para["content"]) == (
+            "See  for context."
+        )
+
+    def test_markdown_link_to_jira_url_stays_link(self):
+        """Markdown links to Jira browse URLs do not become inlineCard nodes."""
+        result = markdown_to_adf(
+            "[PROJ-1](https://example.atlassian.net/browse/PROJ-1)"
+        )
+        para = result["content"][0]
+
+        assert not any(node["type"] == "inlineCard" for node in para["content"])
+        link_node = para["content"][0]
+        assert link_node["type"] == "text"
+        assert link_node["text"] == "PROJ-1"
+        assert link_node["marks"][0]["attrs"]["href"] == (
+            "https://example.atlassian.net/browse/PROJ-1"
+        )
+
     # -- Mentions -----------------------------------------------------------
 
     def test_accountid_link_mention_becomes_mention_node(self):
