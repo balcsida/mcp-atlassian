@@ -103,6 +103,27 @@ def test_init_with_token_auth():
         assert client.config == config
 
 
+def test_init_with_token_auth_restores_request_ca_bundle(monkeypatch, tmp_path):
+    """PAT auth keeps REQUESTS_CA_BUNDLE when trust_env is disabled."""
+    ca_bundle = tmp_path / "corp-ca.pem"
+    ca_bundle.write_text("certificate")
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", str(ca_bundle))
+
+    with (
+        patch("mcp_atlassian.jira.client.Jira") as mock_jira,
+        patch("mcp_atlassian.jira.client.configure_ssl_verification"),
+    ):
+        config = JiraConfig(
+            url="https://jira.example.com",
+            auth_type="pat",
+            personal_token="test_personal_token",
+        )
+
+        JiraClient(config=config)
+
+        assert mock_jira.return_value._session.verify == str(ca_bundle)
+
+
 def test_create_version_uses_v2_for_server():
     """Server/DC version creation uses REST v2."""
     with (

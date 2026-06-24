@@ -106,6 +106,28 @@ def test_init_with_token_auth():
         )
 
 
+def test_init_with_token_auth_restores_request_ca_bundle(monkeypatch, tmp_path):
+    """PAT auth keeps REQUESTS_CA_BUNDLE when trust_env is disabled."""
+    ca_bundle = tmp_path / "corp-ca.pem"
+    ca_bundle.write_text("certificate")
+    monkeypatch.setenv("REQUESTS_CA_BUNDLE", str(ca_bundle))
+
+    with (
+        patch("mcp_atlassian.confluence.client.Confluence") as mock_confluence,
+        patch("mcp_atlassian.preprocessing.confluence.ConfluencePreprocessor"),
+        patch("mcp_atlassian.confluence.client.configure_ssl_verification"),
+    ):
+        config = ConfluenceConfig(
+            url="https://confluence.example.com",
+            auth_type="pat",
+            personal_token="test_personal_token",
+        )
+
+        ConfluenceClient(config=config)
+
+        assert mock_confluence.return_value._session.verify == str(ca_bundle)
+
+
 def test_init_from_env():
     """Test initializing the client from environment variables."""
     # Arrange
