@@ -514,6 +514,15 @@ class JiraPreprocessor(BasePreprocessor):
         def convert_bold_italic_line(line: str) -> str:
             if re.match(r"^[*_]+\s", line):
                 return line
+            # CommonMark treats underscores between two word characters as
+            # literal text, not emphasis. The Jira wiki renderer does not:
+            # it italicizes any ``_word_`` span, so identifiers such as
+            # snake_case, customfield_10101 or foo_bar_baz would render with
+            # spurious italics (and adjacent identifiers can pair into a
+            # cross-token italic span). Escape intraword underscores as
+            # ``\_`` so Jira renders them literally; genuine word-boundary
+            # ``_emphasis_`` is left intact for the conversion below.
+            line = re.sub(r"(?<=[^\W_])_(?=[^\W_])", r"\\_", line)
             return re.sub(
                 r"([*_]+)(.*?)\1",
                 lambda m: (
