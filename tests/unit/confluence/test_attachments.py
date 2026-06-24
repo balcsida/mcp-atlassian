@@ -106,6 +106,7 @@ class TestAttachmentsMixin:
         if raise_error:
             attachments_mixin.confluence._session.post.side_effect = raise_error
         else:
+            mock_response.status_code = 200
             mock_response.json.return_value = response_data
             mock_response.raise_for_status.return_value = None
             attachments_mixin.confluence._session.post.return_value = mock_response
@@ -156,7 +157,8 @@ class TestAttachmentsMixin:
             # Check URL
             assert "/rest/api/content/123456/child/attachment" in call_args[0][0]
 
-            # Check headers include X-Atlassian-Token
+            # Check headers include X-Atlassian-Token with correct value (hyphen required
+            # by Confluence Server/DC to bypass XSRF validation)
             assert call_args[1]["headers"]["X-Atlassian-Token"] == "no-check"
 
             # Check minorEdit was passed in data
@@ -290,6 +292,72 @@ class TestAttachmentsMixin:
             # Assertions: exception is caught by upload_attachment and returned as failure dict
             assert result["success"] is False
             assert "API Error" in result["error"]
+
+    def test_upload_attachment_versioning_fallback(
+        self, attachments_mixin: AttachmentsMixin
+    ):
+        """Test that re-uploading an existing file triggers the versioning fallback.
+
+        On Confluence Server/DC, uploading a file with the same name as an existing
+        attachment returns HTTP 400 with 'same file name' in the body. The code must
+        then GET the existing attachment ID and POST to /child/attachment/{id}/data
+        to create a new version.
+        """
+        updated_attachment = {
+            "id": "att12345",
+            "type": "attachment",
+            "title": "test_file.txt",
+            "extensions": {"mediaType": "text/plain", "fileSize": 200},
+            "_links": {"download": "/download/attachments/123/test_file.txt"},
+            "version": {"number": 2},
+        }
+
+        # First POST returns 400 "same file name"
+        conflict_response = Mock()
+        conflict_response.status_code = 400
+        conflict_response.text = (
+            "Attachment with same file name already exists: test_file.txt"
+        )
+
+        # GET list returns existing attachment
+        list_response = Mock()
+        list_response.status_code = 200
+        list_response.raise_for_status.return_value = None
+        list_response.json.return_value = {"results": [{"id": "att12345"}]}
+
+        # Second POST (to /data endpoint) returns the updated attachment
+        update_response = Mock()
+        update_response.status_code = 200
+        update_response.raise_for_status.return_value = None
+        update_response.json.return_value = updated_attachment
+
+        attachments_mixin.confluence._session.post.side_effect = [
+            conflict_response,
+            update_response,
+        ]
+        attachments_mixin.confluence._session.get.return_value = list_response
+
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("os.path.getsize", return_value=200),
+            patch("os.path.isabs", return_value=True),
+            patch("os.path.abspath", return_value="/absolute/path/test_file.txt"),
+            patch("os.path.basename", return_value="test_file.txt"),
+            patch("builtins.open", mock_open(read_data=b"updated content")),
+        ):
+            result = attachments_mixin.upload_attachment(
+                "123456", "/absolute/path/test_file.txt"
+            )
+
+        assert result["success"] is True
+        assert result["filename"] == "test_file.txt"
+
+        # Verify the versioning POST was made to the /data endpoint
+        assert attachments_mixin.confluence._session.post.call_count == 2
+        second_call_url = attachments_mixin.confluence._session.post.call_args_list[1][
+            0
+        ][0]
+        assert "/child/attachment/att12345/data" in second_call_url
 
     # Tests for upload_attachments method
 
