@@ -697,9 +697,11 @@ async def create_page(
         Field(
             description=(
                 "(Optional) The format of the content parameter. Options: 'markdown' "
-                "(default), 'wiki', or 'storage'. Wiki format uses Confluence wiki "
-                "markup syntax. Choose 'storage' when embedded macros, Jira cards/lists, "
-                "task metadata, or page layout must round-trip unchanged."
+                "(default), 'wiki', 'storage', or 'xhtml'. Wiki format uses "
+                "Confluence wiki markup syntax. Choose 'storage' or 'xhtml' "
+                "when embedded macros, Jira cards/lists, task metadata, or "
+                "page layout must round-trip unchanged. 'xhtml' is treated "
+                "the same as 'storage'."
             ),
             default="markdown",
         ),
@@ -748,7 +750,7 @@ async def create_page(
         title: The title of the page.
         content: The content of the page (format depends on content_format).
         parent_id: Optional parent page ID.
-        content_format: The format of the content ('markdown', 'wiki', or 'storage').
+        content_format: The format of the content ('markdown', 'wiki', 'storage', or 'xhtml').
         enable_heading_anchors: Whether to enable heading anchors (markdown only).
         include_content: Whether to include page content in the response.
         emoji: Optional page title emoji (icon shown in navigation).
@@ -764,9 +766,9 @@ async def create_page(
     confluence_fetcher = await get_confluence_fetcher(ctx)
 
     # Validate content_format
-    if content_format not in ["markdown", "wiki", "storage"]:
+    if content_format not in ["markdown", "wiki", "storage", "xhtml"]:
         raise ValueError(
-            f"Invalid content_format: {content_format}. Must be 'markdown', 'wiki', or 'storage'"
+            f"Invalid content_format: {content_format}. Must be 'markdown', 'wiki', 'storage', or 'xhtml'"
         )
 
     # Determine parameters based on content format
@@ -775,7 +777,10 @@ async def create_page(
         content_representation = None  # Will be converted to storage
     else:
         is_markdown = False
-        content_representation = content_format  # Pass 'wiki' or 'storage' directly
+        # Map 'xhtml' to 'storage' (both use storage format)
+        content_representation = (
+            "storage" if content_format == "xhtml" else content_format
+        )
 
     page = confluence_fetcher.create_page(
         space_key=space_key,
@@ -836,9 +841,11 @@ async def update_page(
         Field(
             description=(
                 "(Optional) The format of the content parameter. Options: 'markdown' "
-                "(default), 'wiki', or 'storage'. Wiki format uses Confluence wiki "
-                "markup syntax. Choose 'storage' when embedded macros, Jira cards/lists, "
-                "task metadata, or page layout must round-trip unchanged."
+                "(default), 'wiki', 'storage', or 'xhtml'. Wiki format uses "
+                "Confluence wiki markup syntax. Choose 'storage' or 'xhtml' "
+                "when embedded macros, Jira cards/lists, task metadata, or "
+                "page layout must round-trip unchanged. 'xhtml' is treated "
+                "the same as 'storage'."
             ),
             default="markdown",
         ),
@@ -889,7 +896,7 @@ async def update_page(
         is_minor_edit: Whether this is a minor edit.
         version_comment: Optional comment for this version.
         parent_id: Optional new parent page ID.
-        content_format: The format of the content ('markdown', 'wiki', or 'storage').
+        content_format: The format of the content ('markdown', 'wiki', 'storage', or 'xhtml').
         enable_heading_anchors: Whether to enable heading anchors (markdown only).
         include_content: Whether to include page content in the response.
         emoji: Optional page title emoji (icon shown in navigation).
@@ -905,9 +912,9 @@ async def update_page(
     confluence_fetcher = await get_confluence_fetcher(ctx)
 
     # Validate content_format
-    if content_format not in ["markdown", "wiki", "storage"]:
+    if content_format not in ["markdown", "wiki", "storage", "xhtml"]:
         raise ValueError(
-            f"Invalid content_format: {content_format}. Must be 'markdown', 'wiki', or 'storage'"
+            f"Invalid content_format: {content_format}. Must be 'markdown', 'wiki', 'storage', or 'xhtml'"
         )
 
     # Determine parameters based on content format
@@ -916,7 +923,10 @@ async def update_page(
         content_representation = None  # Will be converted to storage
     else:
         is_markdown = False
-        content_representation = content_format  # Pass 'wiki' or 'storage' directly
+        # Map 'xhtml' to 'storage' (both use storage format)
+        content_representation = (
+            "storage" if content_format == "xhtml" else content_format
+        )
 
     updated_page = confluence_fetcher.update_page(
         page_id=page_id,
