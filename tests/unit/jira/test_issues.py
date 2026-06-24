@@ -724,6 +724,43 @@ class TestIssuesMixin:
         issues_mixin.jira.get.assert_called_once_with("/rest/api/2/issue/TEST-123")
         assert document.key == "TEST-123"
 
+    def test_update_issue_assignee_dict_passthrough_name(
+        self, issues_mixin: IssuesMixin, make_issue_data
+    ):
+        """Dict-shaped Server/DC assignee is forwarded without user lookup."""
+        issues_mixin.jira.get_issue.return_value = make_issue_data()
+        issues_mixin.jira.issue_get_comments.return_value = {"comments": []}
+        issues_mixin._get_account_id = MagicMock()
+
+        issues_mixin.update_issue(
+            issue_key="TEST-123", assignee={"name": "jdoe@example.com"}
+        )
+
+        issues_mixin._get_account_id.assert_not_called()
+        issues_mixin.jira.update_issue.assert_called_once_with(
+            issue_key="TEST-123",
+            update={"fields": {"assignee": {"name": "jdoe@example.com"}}},
+        )
+
+    def test_update_issue_assignee_dict_passthrough_accountid(
+        self, issues_mixin: IssuesMixin, make_issue_data
+    ):
+        """Dict-shaped Cloud assignee is forwarded without user lookup."""
+        issues_mixin.jira.get_issue.return_value = make_issue_data()
+        issues_mixin.jira.issue_get_comments.return_value = {"comments": []}
+        issues_mixin._get_account_id = MagicMock()
+
+        issues_mixin.update_issue(
+            issue_key="TEST-123",
+            assignee={"accountId": "5b10ac8d82e05b22cc7d4ef5"},
+        )
+
+        issues_mixin._get_account_id.assert_not_called()
+        issues_mixin.jira.update_issue.assert_called_once_with(
+            issue_key="TEST-123",
+            update={"fields": {"assignee": {"accountId": "5b10ac8d82e05b22cc7d4ef5"}}},
+        )
+
     def test_update_issue_basic(self, issues_mixin: IssuesMixin, make_issue_data):
         """Test updating an issue with basic fields."""
         issues_mixin.jira.get_issue.return_value = make_issue_data(

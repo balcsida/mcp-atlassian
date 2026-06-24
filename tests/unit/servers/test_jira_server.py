@@ -476,6 +476,7 @@ def test_jira_mcp(mock_jira_fetcher, mock_base_jira_config):
         move_issue,
         remove_issue_link,
         search,
+        search_assignable_users,
         search_fields,
         search_projects,
         transition_issue,
@@ -506,6 +507,7 @@ def test_jira_mcp(mock_jira_fetcher, mock_base_jira_config):
     jira_sub_mcp.add_tool(get_sprint_issues)
     jira_sub_mcp.add_tool(get_link_types)
     jira_sub_mcp.add_tool(get_user_profile)
+    jira_sub_mcp.add_tool(search_assignable_users)
     jira_sub_mcp.add_tool(create_issue)
     jira_sub_mcp.add_tool(batch_create_issues)
     jira_sub_mcp.add_tool(batch_get_changelogs)
@@ -1083,6 +1085,55 @@ async def test_get_user_profile_tool_not_found(jira_client, mock_jira_fetcher):
     assert "error" in result_data
     assert "not found" in result_data["error"]
     assert result_data["user_identifier"] == "nonexistent@example.com"
+
+
+@pytest.mark.anyio
+async def test_search_assignable_users_tool_success(jira_client, mock_jira_fetcher):
+    """Search assignable users returns simplified matching users."""
+    mock_user = MagicMock()
+    mock_user.to_simplified_dict.return_value = {
+        "username": "jsmith@example.com",
+        "user_key": "JIRAUSER1001",
+        "display_name": "John Smith",
+    }
+    mock_jira_fetcher.search_assignable_users.return_value = [mock_user]
+
+    response = await jira_client.call_tool(
+        "jira_search_assignable_users",
+        {"query": "Smith", "project_key": "PROJ", "limit": 5},
+    )
+
+    mock_jira_fetcher.search_assignable_users.assert_called_once_with(
+        query="Smith",
+        project_key="PROJ",
+        issue_key=None,
+        limit=5,
+    )
+    result_data = json.loads(response.content[0].text)
+    assert result_data == {
+        "success": True,
+        "count": 1,
+        "users": [
+            {
+                "username": "jsmith@example.com",
+                "user_key": "JIRAUSER1001",
+                "display_name": "John Smith",
+            }
+        ],
+    }
+
+
+@pytest.mark.anyio
+async def test_search_assignable_users_tool_requires_scope(jira_client):
+    """Search assignable users requires a project or issue scope."""
+    response = await jira_client.call_tool(
+        "jira_search_assignable_users", {"query": "Smith"}
+    )
+
+    result_data = json.loads(response.content[0].text)
+    assert result_data["success"] is False
+    assert "project_key or issue_key" in result_data["error"]
+    assert result_data["query"] == "Smith"
 
 
 @pytest.mark.anyio

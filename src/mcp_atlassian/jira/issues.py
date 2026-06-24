@@ -1306,6 +1306,8 @@ class IssuesMixin(
                     # Handle assignee updates, allow unassignment with None or empty string
                     if value is None or value == "":
                         update_fields["assignee"] = None
+                    elif isinstance(value, dict):
+                        update_fields["assignee"] = value
                     else:
                         try:
                             account_id = self._get_account_id(value)
@@ -1376,9 +1378,7 @@ class IssuesMixin(
 
             # Get the updated issue data and convert to JiraIssue model
             return_fields_param = self._normalize_return_fields(return_fields)
-            issue_data = self.jira.get_issue(
-                issue_key, fields=return_fields_param
-            )
+            issue_data = self.jira.get_issue(issue_key, fields=return_fields_param)
             if isinstance(issue_data, str):
                 # atlassian-python-api can return a string on Jira Server/DC
                 # when response.json() fails. Try parsing it as JSON first.

@@ -170,6 +170,114 @@ async def get_user_profile(
 
 
 @jira_mcp.tool(
+    tags={"jira", "read", "toolset:jira_users"},
+    annotations={"title": "Search Assignable Users", "readOnlyHint": True},
+)
+async def search_assignable_users(
+    ctx: Context,
+    query: Annotated[
+        str,
+        Field(
+            description=(
+                "Free-form text to search Jira users by display name, "
+                "username, or email substring."
+            ),
+        ),
+    ],
+    project_key: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Project key to scope the search to. Required when issue_key "
+                "is not provided."
+            ),
+            default=None,
+        ),
+    ] = None,
+    issue_key: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Issue key to scope the search to. Required when project_key "
+                "is not provided."
+            ),
+            default=None,
+        ),
+    ] = None,
+    limit: Annotated[
+        int,
+        Field(
+            description="Maximum number of users to return.",
+            default=20,
+            ge=1,
+            le=1000,
+        ),
+    ] = 20,
+) -> str:
+    """Search Jira users assignable in a project or issue.
+
+    Args:
+        ctx: The FastMCP context.
+        query: Free-form user search text.
+        project_key: Project key used to scope the search.
+        issue_key: Issue key used to scope the search.
+        limit: Maximum number of users to return.
+
+    Returns:
+        JSON string containing matching users or an error object.
+    """
+    if not project_key and not issue_key:
+        return json.dumps(
+            {
+                "success": False,
+                "error": "Either project_key or issue_key must be provided.",
+                "query": query,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+
+    jira = await get_jira_fetcher(ctx)
+    try:
+        users = jira.search_assignable_users(
+            query=query,
+            project_key=project_key,
+            issue_key=issue_key,
+            limit=limit,
+        )
+        result_users = [user.to_simplified_dict() for user in users]
+        response_data = {
+            "success": True,
+            "count": len(result_users),
+            "users": result_users,
+        }
+    except Exception as e:
+        error_message = ""
+        log_level = logging.ERROR
+        if isinstance(e, MCPAtlassianAuthenticationError):
+            error_message = f"Authentication/Permission Error: {str(e)}"
+        elif isinstance(e, OSError | HTTPError):
+            error_message = f"Network or API Error: {str(e)}"
+        else:
+            error_message = (
+                "An unexpected error occurred while searching assignable users."
+            )
+            logger.exception(
+                f"Unexpected error in search_assignable_users for {query!r}:"
+            )
+        logger.log(
+            log_level,
+            f"search_assignable_users failed for {query!r}: {error_message}",
+        )
+        response_data = {
+            "success": False,
+            "error": str(e),
+            "query": query,
+        }
+    return json.dumps(response_data, indent=2, ensure_ascii=False)
+
+
+@jira_mcp.tool(
     tags={"jira", "read", "toolset:jira_watchers"},
     annotations={"title": "Get Issue Watchers", "readOnlyHint": True},
 )

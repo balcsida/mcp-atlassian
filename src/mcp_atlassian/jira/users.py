@@ -374,6 +374,65 @@ class UsersMixin(JiraClient):
         return api_kwargs
 
     @handle_auth_errors("Jira API")
+    def search_assignable_users(
+        self,
+        query: str,
+        project_key: str | None = None,
+        issue_key: str | None = None,
+        limit: int = 20,
+    ) -> list[JiraUser]:
+        """Search users assignable in a Jira project or issue.
+
+        Uses Jira's project/issue-scoped assignee search endpoint. This is useful
+        when global user search is restricted but the caller can work with the
+        target project or issue.
+
+        Args:
+            query: Free-form user search text.
+            project_key: Project key used to scope the search.
+            issue_key: Issue key used to scope the search. Takes precedence over
+                project_key when both are provided.
+            limit: Maximum number of users to return. Clamped to 1..1000, with
+                falsy values treated as the default 20.
+
+        Returns:
+            Matching Jira users in API order.
+
+        Raises:
+            ValueError: If neither project_key nor issue_key is provided.
+        """
+        if not project_key and not issue_key:
+            raise ValueError("Either project_key or issue_key must be provided.")
+
+        max_results = 20 if not limit else max(1, min(int(limit), 1000))
+        url = f"{self.config.url}/rest/api/2/user/assignable/search"
+        params: dict[str, str | int] = {
+            "username": query,
+            "maxResults": max_results,
+            "startAt": 0,
+        }
+        if issue_key:
+            params["issueKey"] = issue_key
+        elif project_key:
+            params["project"] = project_key
+
+        response = self.jira._session.get(
+            url, params=params, verify=self.config.ssl_verify
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, list):
+            logger.error(
+                "Unexpected response type from Jira assignable user search: %s",
+                type(data),
+            )
+            return []
+
+        return [
+            JiraUser.from_api_response(raw) for raw in data if isinstance(raw, dict)
+        ]
+
+    @handle_auth_errors("Jira API")
     def get_user_profile_by_identifier(self, identifier: str) -> "JiraUser":
         """
         Retrieve Jira user profile information by identifier.
